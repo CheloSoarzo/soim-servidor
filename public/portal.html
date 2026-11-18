@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b2a63">
+<title>Mis informes de servicio - SOIM Chile</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body class="pg-portal">
+
+<div id="login" class="ov" hidden>
+<form id="lf" class="card" autocomplete="on">
+<h1>Informes de servicio</h1>
+<p>Ingrese con el RUT y la clave que le entregó SOIM Chile.</p>
+<label for="lrut">RUT</label><input id="lrut" autocomplete="username" autocapitalize="off" placeholder="76.123.456-7" required>
+<label for="lpw">Contraseña</label><input id="lpw" type="password" autocomplete="current-password" required>
+<div id="lmsg" class="msg err" role="alert"></div>
+<button class="p" type="submit">Entrar</button>
+</form>
+</div>
+
+<main id="app" hidden>
+<header class="hd"><img src="logo.png" alt="SOIM CHILE Ingeniería Médica"></header>
+<div id="ubar"><span><b id="who"></b></span><span><button class="s" id="logout" type="button">Salir</button></span></div>
+
+<h1 id="ttl">Informes de servicio</h1>
+<div class="tabs"><button id="tb-rep" class="on" type="button">Informes</button><button id="tb-eq" type="button">Equipos</button></div>
+
+<section id="sec-rep">
+<div class="card">
+<div class="grid">
+<div><label for="fq">Buscar</label><input id="fq" type="search" placeholder="equipo, serie, problema…"></div>
+<div><label for="fd">Desde</label><input id="fd" type="date"></div>
+<div><label for="fh">Hasta</label><input id="fh" type="date"></div>
+</div>
+<div id="eqchip" class="chip" hidden><span id="eqchipt"></span><button class="s" id="eqclr" type="button">Quitar</button></div>
+<div class="bar"><button class="p" id="fgo" type="button">Buscar</button><button id="fclr" type="button">Limpiar</button></div>
+</div>
+<div id="rcount" class="msg"></div>
+<div id="rlist"></div>
+<div class="bar"><button id="more" type="button" hidden>Ver más</button></div>
+</section>
+
+<section id="sec-eq" hidden>
+<div id="ecount" class="msg"></div>
+<div id="elist"></div>
+</section>
+</main>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var ME=null,offset=0,LIMIT=30,lastQ='',EQ=null;
+async function api(method,url,body){
+  var o={method:method,credentials:'same-origin',headers:{}};
+  if(body!==undefined){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
+  var r=await fetch(url,o),j={};try{j=await r.json()}catch(e){}
+  if(r.status===401&&url!=='/api/me'&&url!=='/api/login'){ME=null;showLogin('Su sesión venció. Ingrese de nuevo.')}
+  if(!r.ok){var e=new Error(j.error||('Error '+r.status));e.status=r.status;throw e}
+  return j;
+}
+function el(t,x,c){var e=document.createElement(t);if(x!==undefined&&x!==null)e.textContent=x;if(c)e.className=c;return e}
+function fdate(s){var p=String(s).split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s}
+function showLogin(m){$('app').hidden=true;$('login').hidden=false;$('lmsg').textContent=m||'';$('lpw').value=''}
+function enter(){
+  $('login').hidden=true;$('app').hidden=false;$('who').textContent=ME.cliente||ME.name;
+  $('ttl').textContent='Informes de servicio';
+  search(true);
+}
+async function init(){
+  try{var j=await api('GET','/api/me');ME=j.user;
+    if(ME.mustChange){location.replace('index.html');return}
+    if(ME.role!=='cliente'){location.replace('index.html');return}
+    enter()}
+  catch(e){showLogin(e.status===401?'':'Sin conexión con el servidor.')}
+}
+$('lf').onsubmit=async function(ev){
+  ev.preventDefault();$('lmsg').textContent='Ingresando…';
+  try{var j=await api('POST','/api/login',{rut:$('lrut').value,password:$('lpw').value});ME=j.user;
+    if(ME.mustChange||ME.role!=='cliente'){location.replace('index.html');return}
+    $('lmsg').textContent='';enter()}
+  catch(e){$('lmsg').textContent=e.message;$('lpw').value=''}
+};
+$('logout').onclick=async function(){try{await api('POST','/api/logout')}catch(e){}ME=null;showLogin()};
+function tab(w){$('sec-rep').hidden=w!=='rep';$('sec-eq').hidden=w!=='eq';$('tb-rep').className=w==='rep'?'on':'';$('tb-eq').className=w==='eq'?'on':'';if(w==='eq')loadEq()}
+$('tb-rep').onclick=function(){tab('rep')};$('tb-eq').onclick=function(){tab('eq')};
+
+function qs(){
+  var p=new URLSearchParams();
+  var q=$('fq').value.trim();if(q)p.set('q',q);
+  if($('fd').value)p.set('desde',$('fd').value);if($('fh').value)p.set('hasta',$('fh').value);
+  if(EQ){p.set('equipo',EQ.equipo);if(EQ.serie)p.set('serie',EQ.serie)}
+  return p.toString();
+}
+function card(r){
+  var c=el('div',null,'rep');
+  var h=el('div',null,'rep-h');h.appendChild(el('b',fdate(r.fecha)));if(r.tipo)h.appendChild(el('span',r.tipo,'tag'));c.appendChild(h);
+  c.appendChild(el('div',[r.equipo,r.modelo].filter(Boolean).join(' · ')||'Servicio','rep-t'));
+  var m=[];if(r.serie)m.push('Serie '+r.serie);if(r.tecnico)m.push('Técnico: '+r.tecnico);
+  if(m.length)c.appendChild(el('div',m.join('  |  '),'hint'));
+  if(r.problema)c.appendChild(el('div',r.problema,'rep-p'));
+  var b=el('div',null,'bar');
+  var v=el('a','Ver informe');v.href='/api/reports/'+encodeURIComponent(r.id)+'/pdf';v.target='_blank';v.rel='noopener';
+  var d=el('a','Descargar PDF');d.href=v.href+'?download=1';
+  b.appendChild(v);b.appendChild(d);c.appendChild(b);return c;
+}
+async function search(reset){
+  if(reset){offset=0;$('rlist').textContent='';lastQ=qs()}
+  $('rcount').textContent='Buscando…';$('rcount').className='msg';
+  try{
+    var j=await api('GET','/api/reports?'+lastQ+(lastQ?'&':'')+'limit='+LIMIT+'&offset='+offset);
+    j.items.forEach(function(r){$('rlist').appendChild(card(r))});
+    offset+=j.items.length;
+    $('rcount').textContent=j.total?(j.total===1?'1 informe':j.total+' informes'):'No hay informes con esos filtros.';
+    $('more').hidden=offset>=j.total;
+  }catch(e){$('rcount').textContent=e.message;$('rcount').className='msg err'}
+}
+$('fgo').onclick=function(){search(true)};
+$('more').onclick=function(){search(false)};
+$('fclr').onclick=function(){$('fq').value=$('fd').value=$('fh').value='';setEq(null);search(true)};
+$('fq').addEventListener('keydown',function(e){if(e.key==='Enter')search(true)});
+function setEq(e){EQ=e;$('eqchip').hidden=!e;if(e)$('eqchipt').textContent='Equipo: '+[e.equipo,e.serie&&'serie '+e.serie].filter(Boolean).join(' · ')}
+$('eqclr').onclick=function(){setEq(null);search(true)};
+
+async function loadEq(){
+  $('ecount').textContent='Cargando…';$('ecount').className='msg';
+  try{
+    var j=await api('GET','/api/equipos'),box=$('elist');box.textContent='';
+    j.items.forEach(function(x){
+      var c=el('div',null,'rep');
+      c.appendChild(el('div',x.equipo||'Equipo sin tipo','rep-t'));
+      var m=[x.modelo,x.serie&&'Serie '+x.serie].filter(Boolean).join(' · ');if(m)c.appendChild(el('div',m,'hint'));
+      c.appendChild(el('div',x.informes+(x.informes===1?' informe':' informes')+' · último servicio: '+fdate(x.ultimo),'rep-p'));
+      var b=el('div',null,'bar'),k=el('button','Ver historial','s');k.type='button';
+      k.onclick=function(){setEq({equipo:x.equipo,serie:x.serie});tab('rep');search(true)};
+      b.appendChild(k);c.appendChild(b);box.appendChild(c);
+    });
+    $('ecount').textContent=j.items.length?'':'Aún no hay equipos con informes.';
+  }catch(e){$('ecount').textContent=e.message;$('ecount').className='msg err'}
+}
+init();
+})();
+</script>
+</body>
+</html>

@@ -92,6 +92,9 @@
 <div style="height:8px"></div>
 <button id="save" style="width:100%">Guardar borrador en este dispositivo</button>
 
+<div class="card" style="margin-top:16px"><h2>Mis informes enviados</h2>
+<label for="sq" class="vh">Buscar</label><input id="sq" type="search" placeholder="Buscar por cliente, equipo o serie…">
+<div id="sentmsg" class="hint"></div><div id="sentlist"></div></div>
 <div class="card" style="margin-top:16px"><h2>Informes guardados</h2><div id="list"><small style="color:var(--mu)">Ninguno todavía</small></div></div>
 </main>
 
@@ -387,16 +390,41 @@ function qdo(mode,fn){return idb().then(function(db){return new Promise(function
 function qall(){return qdo('readonly',function(s){return s.getAll()})}
 function qput(o){return qdo('readwrite',function(s){return s.put(o)})}
 function qdel(id){return qdo('readwrite',function(s){return s.delete(id)})}
+function xv(d,k){var r=(d.x||[]).filter(function(p){return String(p[0]).toLowerCase().indexOf(k)>-1})[0];return r?String(r[1]||'').trim():''}
 function hs(t){var h=5381;for(var i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;return(h>>>0).toString(36)+'-'+t.length.toString(36)}
 function b64(blob){return new Promise(function(res,rej){var f=new FileReader();f.onload=function(){res(String(f.result).split(',')[1])};f.onerror=rej;f.readAsDataURL(blob)})}
 function mine(all){return all.filter(function(x){return ME&&x.uid===ME.id})}
 async function post(o){
-  var r=await fetch('/api/reports',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:o.id,name:o.name,fecha:o.fecha,cliente:o.cliente,tecnico:o.tecnico,equipo:o.equipo,tipo:o.tipo,pdf:o.pdf})});
+  var r=await fetch('/api/reports',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:o.id,name:o.name,fecha:o.fecha,cliente:o.cliente,tecnico:o.tecnico,equipo:o.equipo,tipo:o.tipo,modelo:o.modelo,serie:o.serie,problema:o.problema,pdf:o.pdf})});
   if(r.status===401){var e=new Error('sesión vencida');e.auth=1;throw e}
   var j={};try{j=await r.json()}catch(_){}
   if(!r.ok||!j.ok){var er=new Error(j.error||('error '+r.status));er.fatal=r.status>=400&&r.status<500;throw er}
   return j;
 }
+function fdate(s){var p=String(s).split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:s}
+function sentRow(x,pend){
+  var c=document.createElement('div');c.className='rep';
+  var h=document.createElement('div');h.className='rep-h';var b=document.createElement('b');b.textContent=fdate(x.fecha)+' · '+x.cliente;h.appendChild(b);
+  if(pend){var t=document.createElement('span');t.className='tag pendiente';t.textContent='Sin enviar';h.appendChild(t)}
+  c.appendChild(h);
+  var m=document.createElement('div');m.className='hint';m.textContent=[x.equipo,x.serie&&'Serie '+x.serie,x.tipo].filter(Boolean).join(' · ');c.appendChild(m);
+  if(!pend){var a=document.createElement('a');a.textContent='Ver PDF';a.href='/api/reports/'+encodeURIComponent(x.id)+'/pdf';a.target='_blank';a.rel='noopener';a.style.display='inline-block';a.style.marginTop='6px';c.appendChild(a)}
+  return c;
+}
+var sentSeq=0;
+async function sent(){
+  if(!ME)return;var seq=++sentSeq,box=$('sentlist'),msg=$('sentmsg'),q=$('sq').value.trim();
+  var pend=[];try{pend=mine(await qall())}catch(e){}
+  var items=null;
+  if(navigator.onLine){try{var r=await fetch('/api/reports?limit=30'+(q?'&q='+encodeURIComponent(q):''),{credentials:'same-origin'});if(r.ok)items=(await r.json()).items}catch(e){}}
+  if(seq!==sentSeq)return;
+  box.textContent='';
+  pend.forEach(function(x){if(!q||JSON.stringify([x.cliente,x.equipo,x.tipo]).toLowerCase().indexOf(q.toLowerCase())>-1)box.appendChild(sentRow(x,true))});
+  (items||[]).forEach(function(x){box.appendChild(sentRow(x,false))});
+  msg.textContent=items===null?'Sin conexión: no se puede mostrar la lista del servidor.':(!items.length&&!pend.length?(q?'No hay informes con ese texto.':'Aún no ha enviado informes.'):'');
+}
+var sentT;$('sq').addEventListener('input',function(){clearTimeout(sentT);sentT=setTimeout(sent,300)});
+window.addEventListener('online',function(){sent()});
 async function pending(){
   try{var n=mine(await qall()).length;$('pend').hidden=!n;$('pendt').textContent=n?n+' informe(s) pendiente(s) de enviar al servidor.':''}catch(e){}
 }
@@ -411,12 +439,12 @@ async function flush(){
       catch(e){lastErr=e&&e.message||String(e);if(e&&e.auth){ME=null;showLogin('Su sesión venció. Ingrese de nuevo; los informes pendientes se enviarán solos.');break}}
     }
   }catch(e){}
-  flushing=false;await pending();
+  flushing=false;await pending();sent();
 }
 async function sendCloud(r){
   if(!ME){say('PDF listo, pero debe iniciar sesión para enviarlo al servidor.',1);return}
   try{
-    var d=r.d,o={uid:ME.id,id:d.fecha+'-'+hs(JSON.stringify(d))+'-'+Date.now().toString(36),name:d.fecha+'_'+d.cliente.replace(/[^\w\-]+/g,'_')+'_'+(d.tec||'').replace(/[^\w\-]+/g,'_')+'_'+new Date().toTimeString().slice(0,5).replace(':','')+'.pdf',fecha:d.fecha,cliente:d.cliente,tecnico:d.tec,equipo:d.eq,tipo:d.tipo,pdf:await b64(r.blob)};
+    var d=r.d,o={uid:ME.id,id:d.fecha+'-'+hs(JSON.stringify(d))+'-'+Date.now().toString(36),name:d.fecha+'_'+d.cliente.replace(/[^\w\-]+/g,'_')+'_'+(d.tec||'').replace(/[^\w\-]+/g,'_')+'_'+new Date().toTimeString().slice(0,5).replace(':','')+'.pdf',fecha:d.fecha,cliente:d.cliente,tecnico:d.tec,equipo:d.eq,tipo:d.tipo,modelo:xv(d,'modelo'),serie:xv(d,'serie'),problema:(d.prob||'').slice(0,300),pdf:await b64(r.blob)};
     await qput(o);say('PDF listo. Enviando al servidor…');
     await flush();
     var quedo=(await qall()).some(function(x){return x.id===o.id});
@@ -442,9 +470,10 @@ function showLogin(msg){
 }
 function showChange(){$('login').hidden=false;$('lf').hidden=true;$('cf').hidden=false;$('cmsg').textContent='';$('ubar').hidden=true}
 function afterLogin(offline){
+  if(ME&&ME.role==='cliente'){location.replace('portal.html');return}
   $('login').hidden=true;$('lpw').value='';
   $('uname').textContent=ME.name;$('ubar').hidden=false;$('adminlink').hidden=ME.role!=='admin';
-  applyUser();pending();if(!offline)flush();
+  applyUser();pending();sent();if(!offline)flush();
 }
 function remember(){try{localStorage.setItem('soim-me',JSON.stringify(ME))}catch(e){}}
 async function loadMe(){

@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rut TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('tecnico','admin')),
+  role TEXT NOT NULL CHECK(role IN ('tecnico','admin','cliente')),
+  cliente TEXT,
   pass_hash TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1,
   must_change INTEGER NOT NULL DEFAULT 0,
@@ -52,6 +53,9 @@ CREATE TABLE IF NOT EXISTS reports(
   tecnico TEXT,
   equipo TEXT,
   tipo TEXT,
+  modelo TEXT,
+  serie TEXT,
+  problema TEXT,
   filename TEXT NOT NULL,
   size INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -79,7 +83,51 @@ CREATE TABLE IF NOT EXISTS expenses(
 );
 CREATE INDEX IF NOT EXISTS ix_exp_fecha ON expenses(fecha);
 CREATE INDEX IF NOT EXISTS ix_exp_user ON expenses(user_id);
+CREATE TABLE IF NOT EXISTS funds(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  fecha TEXT NOT NULL,
+  monto INTEGER NOT NULL,
+  nota TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_funds_user ON funds(user_id);
 `);
+
+// Migración de bases creadas con versiones anteriores
+(function migrate() {
+  const usersSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get().sql;
+  if (!/'cliente'/.test(usersSql)) {
+    console.log('[migración] Actualizando la tabla de usuarios (rol cliente)...');
+    db.exec('PRAGMA foreign_keys = OFF; BEGIN;');
+    try {
+      db.exec(`CREATE TABLE users_new(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rut TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('tecnico','admin','cliente')),
+        cliente TEXT,
+        pass_hash TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        must_change INTEGER NOT NULL DEFAULT 0,
+        token_ver INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_new(id,rut,name,role,pass_hash,active,must_change,token_ver,created_at)
+        SELECT id,rut,name,role,pass_hash,active,must_change,token_ver,created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+      COMMIT;`);
+    } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }
+    db.exec('PRAGMA foreign_keys = ON;');
+    if (db.prepare('PRAGMA foreign_key_check').all().length) console.warn('[aviso] La revisión de claves foráneas encontró filas huérfanas.');
+  }
+  const cols = db.prepare('PRAGMA table_info(reports)').all().map(c => c.name);
+  for (const c of ['modelo', 'serie', 'problema']) if (!cols.includes(c)) db.exec('ALTER TABLE reports ADD COLUMN ' + c + ' TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS ix_reports_cliente ON reports(cliente)');
+})();
+
 
 // Administrador inicial (solo si todavía no existe ninguno)
 (function bootstrapAdmin() {
@@ -173,9 +221,9 @@ function setSession(res, u) {
 function clearSession(res) {
   res.setHeader('Set-Cookie', `sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${PROD ? '; Secure' : ''}`);
 }
-const pub = u => ({ id: u.id, rut: u.rut, name: u.name, role: u.role, mustChange: !!u.must_change });
+const pub = u => ({ id: u.id, rut: u.rut, name: u.name, role: u.role, cliente: u.cliente || null, mustChange: !!u.must_change });
 
-const qUserById = db.prepare('SELECT id,rut,name,role,active,must_change,token_ver FROM users WHERE id=?');
+const qUserById = db.prepare('SELECT id,rut,name,role,cliente,active,must_change,token_ver FROM users WHERE id=?');
 function currentUser(req) {
   const t = parseCookies(req).sid;
   if (!t) return null;
@@ -190,6 +238,7 @@ function needUser(ctx, { allowMust = false } = {}) {
   if (u.must_change && !allowMust) throw new HttpError(403, 'Debe cambiar su contraseña antes de continuar.');
   ctx.user = u; return u;
 }
+function needStaff(ctx) { const u = needUser(ctx); if (u.role === 'cliente') throw new HttpError(403, 'Su cuenta solo permite ver sus informes.'); return u; }
 function needAdmin(ctx) { const u = needUser(ctx); if (u.role !== 'admin') throw new HttpError(403, 'Solo para administradores.'); return u; }
 
 // ------------------------------------------------------------------ rutas API
@@ -241,7 +290,7 @@ route('POST', '/api/password', async ctx => {
 // ---- Informes
 const qRepById = db.prepare('SELECT * FROM reports WHERE id=?');
 route('POST', '/api/reports', async ctx => {
-  const u = needUser(ctx);
+  const u = needStaff(ctx);
   if (!hit('up:' + u.id, 120, 60 * 60e3)) throw new HttpError(429, 'Demasiados envíos seguidos.');
   const b = await readJson(ctx.req, 35 * 1024 * 1024);
   const id = String(b.id || '');
@@ -258,20 +307,28 @@ route('POST', '/api/reports', async ctx => {
   const file = path.join(PDF_DIR, id + '.pdf'), tmp = file + '.' + process.pid + '.tmp';
   fs.writeFileSync(tmp, buf); fs.renameSync(tmp, file);
   try {
-    db.prepare('INSERT INTO reports(id,user_id,fecha,cliente,tecnico,equipo,tipo,filename,size) VALUES(?,?,?,?,?,?,?,?,?)')
-      .run(id, u.id, fecha, cliente, clean(b.tecnico, 100) || u.name, clean(b.equipo, 100), clean(b.tipo, 100), safeName(b.name, fecha + '_' + cliente), buf.length);
+    db.prepare('INSERT INTO reports(id,user_id,fecha,cliente,tecnico,equipo,tipo,modelo,serie,problema,filename,size) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id, u.id, fecha, cliente, clean(b.tecnico, 100) || u.name, clean(b.equipo, 100), clean(b.tipo, 100), clean(b.modelo, 120), clean(b.serie, 80), clean(b.problema, 300), safeName(b.name, fecha + '_' + cliente), buf.length);
   } catch (e) { try { fs.unlinkSync(file); } catch (_) {} throw e; }
   send(ctx.res, 201, { ok: true });
 });
 
 function reportFilter(ctx) {
   const q = ctx.query, w = [], p = [];
-  if (ctx.user.role !== 'admin') { w.push('r.user_id=?'); p.push(ctx.user.id); }
+  if (ctx.user.role === 'cliente') { w.push('r.cliente=?'); p.push(ctx.user.cliente || '\u0000'); }
+  else if (ctx.user.role !== 'admin') { w.push('r.user_id=?'); p.push(ctx.user.id); }
   if (DATE_RE.test(q.desde || '')) { w.push('r.fecha>=?'); p.push(q.desde); }
   if (DATE_RE.test(q.hasta || '')) { w.push('r.fecha<=?'); p.push(q.hasta); }
-  for (const f of ['cliente', 'tecnico', 'equipo']) {
+  for (const f of ['cliente', 'tecnico', 'equipo', 'modelo', 'serie']) {
+    if (f === 'cliente' && ctx.user.role === 'cliente') continue;
     const v = clean(q[f], 100);
     if (v) { w.push('r.' + f + " LIKE ? ESCAPE '\\'"); p.push(likeEsc(v)); }
+  }
+  const t = clean(q.q, 100);
+  if (t) {
+    const cols = ctx.user.role === 'cliente' ? ['equipo', 'tipo', 'modelo', 'serie', 'problema', 'tecnico'] : ['cliente', 'equipo', 'tipo', 'modelo', 'serie', 'problema', 'tecnico'];
+    w.push('(' + cols.map(c => 'r.' + c + " LIKE ? ESCAPE '\\'").join(' OR ') + ')');
+    cols.forEach(() => p.push(likeEsc(t)));
   }
   return { where: w.length ? 'WHERE ' + w.join(' AND ') : '', params: p };
 }
@@ -282,10 +339,22 @@ route('GET', '/api/reports', ctx => {
   const limit = Math.min(1000, Math.max(1, +ctx.query.limit || 200)), offset = Math.max(0, +ctx.query.offset || 0);
   const total = db.prepare('SELECT COUNT(*) AS n FROM reports r ' + f.where).get(...f.params).n;
   const items = db.prepare(
-    'SELECT r.id,r.fecha,r.cliente,r.tecnico,r.equipo,r.tipo,r.filename,r.size,r.created_at,u.name AS subido_por ' +
+    'SELECT r.id,r.fecha,r.cliente,r.tecnico,r.equipo,r.tipo,r.modelo,r.serie,r.problema,r.filename,r.size,r.created_at,u.name AS subido_por ' +
     'FROM reports r JOIN users u ON u.id=r.user_id ' + f.where + ' ORDER BY r.fecha DESC, r.created_at DESC LIMIT ? OFFSET ?'
   ).all(...f.params, limit, offset);
+  if (ctx.user.role === 'cliente') items.forEach(x => { delete x.subido_por; });
   send(ctx.res, 200, { total, items });
+});
+
+// Historial por equipo: agrupa los informes por cliente, equipo y número de serie
+route('GET', '/api/equipos', ctx => {
+  needUser(ctx);
+  const f = reportFilter(ctx);
+  const items = db.prepare(
+    "SELECT r.cliente, r.equipo, COALESCE(MAX(NULLIF(r.modelo,'')),'') AS modelo, COALESCE(r.serie,'') AS serie, COUNT(*) AS informes, MAX(r.fecha) AS ultimo " +
+    'FROM reports r ' + f.where + " GROUP BY r.cliente, r.equipo, COALESCE(r.serie,'') ORDER BY r.cliente COLLATE NOCASE, r.equipo COLLATE NOCASE, serie LIMIT 2000"
+  ).all(...f.params);
+  send(ctx.res, 200, { items });
 });
 
 route('GET', '/api/reports.zip', ctx => {
@@ -314,7 +383,8 @@ route('GET', '/api/reports/:id/pdf', ctx => {
   const id = ctx.params.id;
   if (!ID_RE.test(id)) throw new HttpError(404, 'No encontrado.');
   const r = qRepById.get(id);
-  if (!r || (ctx.user.role !== 'admin' && r.user_id !== ctx.user.id)) throw new HttpError(404, 'No encontrado.');
+  const allowed = r && (ctx.user.role === 'admin' || (ctx.user.role === 'cliente' ? (ctx.user.cliente && r.cliente === ctx.user.cliente) : r.user_id === ctx.user.id));
+  if (!allowed) throw new HttpError(404, 'No encontrado.');
   const file = path.join(PDF_DIR, id + '.pdf');
   if (!fs.existsSync(file)) throw new HttpError(404, 'El archivo no está en el servidor.');
   ctx.res.removeHeader('Content-Security-Policy');
@@ -363,7 +433,7 @@ function saveReceipt(id, b, required) {
   return name;
 }
 route('POST', '/api/expenses', async ctx => {
-  const u = needUser(ctx);
+  const u = needStaff(ctx);
   if (!hit('exp:' + u.id, 200, 60 * 60e3)) throw new HttpError(429, 'Demasiados envíos seguidos.');
   const b = await readJson(ctx.req, 9 * 1024 * 1024);
   const id = String(b.id || '');
@@ -394,7 +464,7 @@ const EXP_COLS = 'x.id,x.user_id,u.name AS tecnico,x.fecha,x.monto,x.categoria,x
 const EXP_FROM = 'FROM expenses x JOIN users u ON u.id=x.user_id LEFT JOIN users rv ON rv.id=x.revisado_por ';
 
 route('GET', '/api/expenses', ctx => {
-  needUser(ctx);
+  needStaff(ctx);
   const f = expFilter(ctx);
   const limit = Math.min(1000, Math.max(1, +ctx.query.limit || 300)), offset = Math.max(0, +ctx.query.offset || 0);
   const total = db.prepare('SELECT COUNT(*) AS n FROM expenses x ' + f.where).get(...f.params).n;
@@ -403,7 +473,7 @@ route('GET', '/api/expenses', ctx => {
 });
 
 route('GET', '/api/expenses/summary', ctx => {
-  needUser(ctx);
+  needStaff(ctx);
   const f = expFilter(ctx);
   const grp = col => db.prepare('SELECT ' + col + ' AS k, COUNT(*) AS n, SUM(x.monto) AS total FROM expenses x JOIN users u ON u.id=x.user_id ' + (f.where ? f.where + " AND x.estado<>'rechazado'" : "WHERE x.estado<>'rechazado'") + ' GROUP BY k ORDER BY total DESC').all(...f.params);
   const porEstado = db.prepare('SELECT x.estado AS k, COUNT(*) AS n, SUM(x.monto) AS total FROM expenses x ' + f.where + ' GROUP BY k').all(...f.params);
@@ -430,7 +500,7 @@ route('GET', '/api/expenses.csv', ctx => {
 });
 
 function ownExpense(ctx) {
-  const u = needUser(ctx);
+  const u = needStaff(ctx);
   if (!ID_RE.test(ctx.params.id)) throw new HttpError(404, 'No encontrado.');
   const x = qExpById.get(ctx.params.id);
   if (!x || (u.role !== 'admin' && x.user_id !== u.id)) throw new HttpError(404, 'No encontrado.');
@@ -488,23 +558,68 @@ route('POST', '/api/expenses/:id/review', async ctx => {
   send(ctx.res, 200, { ok: true });
 });
 
+// ---- Fondos por rendir (el administrador entrega o recibe de vuelta dinero; el saldo descuenta los gastos)
+function balanceRows(whereUser, params) {
+  return db.prepare(
+    "SELECT u.id AS user_id, u.name AS tecnico, " +
+    "COALESCE((SELECT SUM(monto) FROM funds WHERE user_id=u.id AND monto>0),0) AS entregado, " +
+    "COALESCE((SELECT -SUM(monto) FROM funds WHERE user_id=u.id AND monto<0),0) AS devuelto, " +
+    "COALESCE((SELECT SUM(monto) FROM expenses WHERE user_id=u.id AND estado<>'rechazado'),0) AS gastado, " +
+    "COALESCE((SELECT SUM(monto) FROM expenses WHERE user_id=u.id AND estado='aprobado'),0) AS aprobado " +
+    "FROM users u WHERE u.role<>'cliente' " + whereUser + " ORDER BY u.name COLLATE NOCASE"
+  ).all(...params).map(r => Object.assign(r, { saldo: r.entregado - r.devuelto - r.gastado }));
+}
+route('GET', '/api/funds/balance', ctx => {
+  const u = needStaff(ctx);
+  const rows = u.role === 'admin' ? balanceRows('AND u.active=1', []) : balanceRows('AND u.id=?', [u.id]);
+  send(ctx.res, 200, { items: rows });
+});
+route('GET', '/api/funds', ctx => {
+  const u = needStaff(ctx);
+  const w = [], p = [];
+  if (u.role !== 'admin') { w.push('f.user_id=?'); p.push(u.id); } else if (+ctx.query.user) { w.push('f.user_id=?'); p.push(+ctx.query.user); }
+  const items = db.prepare('SELECT f.id,f.user_id,t.name AS tecnico,f.fecha,f.monto,f.nota,c.name AS registrado_por,f.created_at FROM funds f JOIN users t ON t.id=f.user_id JOIN users c ON c.id=f.created_by ' + (w.length ? 'WHERE ' + w.join(' AND ') : '') + ' ORDER BY f.fecha DESC, f.id DESC LIMIT 500').all(...p);
+  send(ctx.res, 200, { items });
+});
+route('POST', '/api/funds', async ctx => {
+  const me = needAdmin(ctx);
+  const b = await readJson(ctx.req);
+  const target = db.prepare("SELECT id FROM users WHERE id=? AND role<>'cliente' AND active=1").get(+b.user_id);
+  if (!target) throw new HttpError(400, 'Elija un técnico válido.');
+  const fecha = clean(b.fecha, 10) || todayIso();
+  if (!DATE_RE.test(fecha)) throw new HttpError(400, 'Fecha inválida.');
+  const m = Math.round(Number(b.monto));
+  if (!Number.isFinite(m) || m <= 0 || m > 100000000) throw new HttpError(400, 'El monto debe ser mayor a 0 (en pesos).');
+  const tipo = b.tipo === 'devolucion' ? 'devolucion' : 'entrega';
+  const nota = clean(b.nota, 200);
+  db.prepare('INSERT INTO funds(user_id,fecha,monto,nota,created_by) VALUES(?,?,?,?,?)').run(target.id, fecha, tipo === 'devolucion' ? -m : m, nota, me.id);
+  send(ctx.res, 201, { ok: true });
+});
+route('DELETE', '/api/funds/:id', ctx => {
+  needAdmin(ctx);
+  const r = db.prepare('DELETE FROM funds WHERE id=?').run(+ctx.params.id);
+  if (!r.changes) throw new HttpError(404, 'No encontrado.');
+  send(ctx.res, 200, { ok: true });
+});
+
 // ---- Usuarios (solo administradores)
 route('GET', '/api/users', ctx => {
   needAdmin(ctx);
-  const items = db.prepare("SELECT id,rut,name,role,active,must_change,created_at,(SELECT COUNT(*) FROM reports WHERE user_id=users.id) AS informes FROM users ORDER BY name COLLATE NOCASE").all();
+  const items = db.prepare("SELECT id,rut,name,role,cliente,active,must_change,created_at,(SELECT COUNT(*) FROM reports WHERE user_id=users.id) AS informes FROM users ORDER BY name COLLATE NOCASE").all();
   send(ctx.res, 200, { items });
 });
 
 route('POST', '/api/users', async ctx => {
   needAdmin(ctx);
   const b = await readJson(ctx.req);
-  const rut = sec.normRut(b.rut), name = clean(b.name, 100), role = b.role === 'admin' ? 'admin' : 'tecnico';
+  const rut = sec.normRut(b.rut), name = clean(b.name, 100), role = ['admin', 'cliente'].includes(b.role) ? b.role : 'tecnico', cliente = role === 'cliente' ? clean(b.cliente, 150) : null;
   if (!rut) throw new HttpError(400, 'RUT inválido. Revise el dígito verificador.');
   if (!name) throw new HttpError(400, 'Falta el nombre.');
+  if (role === 'cliente' && !cliente) throw new HttpError(400, 'Indique a qué cliente pertenece la cuenta.');
   const err = sec.passwordError(b.password, rut);
   if (err) throw new HttpError(400, err);
   if (db.prepare('SELECT 1 FROM users WHERE rut=?').get(rut)) throw new HttpError(409, 'Ya existe un usuario con ese RUT.');
-  const r = db.prepare('INSERT INTO users(rut,name,role,pass_hash,must_change) VALUES(?,?,?,?,1)').run(rut, name, role, sec.hashPassword(String(b.password)));
+  const r = db.prepare('INSERT INTO users(rut,name,role,cliente,pass_hash,must_change) VALUES(?,?,?,?,?,1)').run(rut, name, role, cliente, sec.hashPassword(String(b.password)));
   send(ctx.res, 201, { ok: true, id: Number(r.lastInsertRowid) });
 });
 
@@ -515,7 +630,9 @@ route('PATCH', '/api/users/:id', async ctx => {
   if (!u) throw new HttpError(404, 'Usuario no encontrado.');
   const b = await readJson(ctx.req);
   const name = b.name !== undefined ? clean(b.name, 100) : u.name;
-  const role = b.role !== undefined ? (b.role === 'admin' ? 'admin' : 'tecnico') : u.role;
+  const role = b.role !== undefined ? (['admin', 'cliente'].includes(b.role) ? b.role : 'tecnico') : u.role;
+  const cliente = role === 'cliente' ? (b.cliente !== undefined ? clean(b.cliente, 150) : u.cliente) : null;
+  if (role === 'cliente' && !cliente) throw new HttpError(400, 'Indique a qué cliente pertenece la cuenta.');
   const active = b.active !== undefined ? (b.active ? 1 : 0) : u.active;
   if (!name) throw new HttpError(400, 'El nombre no puede estar vacío.');
   if (id === me.id && (!active || role !== 'admin')) throw new HttpError(400, 'No puede desactivarse ni quitarse el rol de administrador a sí mismo.');
@@ -528,7 +645,8 @@ route('PATCH', '/api/users/:id', async ctx => {
     hash = sec.hashPassword(String(b.password)); must = 1; ver++;
   }
   if (!active && u.active) ver++;
-  db.prepare('UPDATE users SET name=?, role=?, active=?, pass_hash=?, must_change=?, token_ver=? WHERE id=?').run(name, role, active, hash, must, ver, id);
+  if ((role !== u.role || cliente !== u.cliente) && u.active) ver++;
+  db.prepare('UPDATE users SET name=?, role=?, cliente=?, active=?, pass_hash=?, must_change=?, token_ver=? WHERE id=?').run(name, role, cliente, active, hash, must, ver, id);
   send(ctx.res, 200, { ok: true });
 });
 

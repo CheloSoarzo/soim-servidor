@@ -38,7 +38,7 @@
 <div id="denied" class="card err" hidden>Esta página es solo para administradores.</div>
 
 <div id="panel" hidden>
-<div class="tabs"><button id="tb-rep" class="on" type="button">Informes</button><button id="tb-usr" type="button">Usuarios</button></div>
+<div class="tabs"><button id="tb-rep" class="on" type="button">Informes</button><button id="tb-eq" type="button">Equipos</button><button id="tb-usr" type="button">Usuarios</button></div>
 
 <section id="sec-rep">
 <div class="card">
@@ -49,6 +49,8 @@
 <div><label for="fc">Cliente</label><input id="fc" placeholder="contiene…"></div>
 <div><label for="ft">Técnico</label><input id="ft" placeholder="contiene…"></div>
 <div><label for="fe">Equipo</label><input id="fe" placeholder="contiene…"></div>
+<div><label for="fsr">N° de serie</label><input id="fsr" placeholder="contiene…"></div>
+<div><label for="fq">Buscar en todo</label><input id="fq" placeholder="problema, modelo…"></div>
 </div>
 <div class="bar">
 <button class="p" id="fgo" type="button">Buscar</button>
@@ -59,10 +61,28 @@
 <div class="card">
 <div id="rcount" class="msg"></div>
 <div class="scroll"><table>
-<thead><tr><th>Fecha</th><th>Cliente</th><th>Técnico</th><th>Equipo</th><th>Tipo</th><th>Enviado</th><th>Tamaño</th><th>PDF</th></tr></thead>
+<thead><tr><th>Fecha</th><th>Cliente</th><th>Técnico</th><th>Equipo</th><th>Modelo / serie</th><th>Tipo</th><th>Enviado</th><th>Tamaño</th><th>PDF</th></tr></thead>
 <tbody id="rbody"></tbody>
 </table></div>
 <div class="bar"><button id="more" type="button" hidden>Cargar más</button></div>
+</div>
+</section>
+
+<section id="sec-eq" hidden>
+<div class="card">
+<h2>Historial por equipo</h2>
+<div class="grid">
+<div><label for="ec">Cliente</label><select id="ec"><option value="">Todos</option><option>Centro de Salud San Rafael</option><option>Centro Imagenes INSI</option><option>Centro Medico Colina Salud</option><option>Centro Medico Isapre Fundacion</option><option>Centro Medico Rancagua</option><option>Centro Medico Santa Catalina Buin</option><option>Centro Medico Santa Catalina Paine</option><option>Centro Medico Veterinario Rucalaf</option><option>Centro Scanner Peñaflor</option><option>Clinica Alemana Osorno</option><option>Clinica Altacura</option><option>Clinica Miraflores</option><option>Clinica Veterinaria Hannover</option><option>Clinica Veterinaria Zoomundo</option><option>Diagnocal</option><option>Hospital Base San Jose Osorno</option><option>Hospital de Nueva Imperial</option><option>Hospital Veterinario Manuel Bulnes</option><option>Hospital Veterinario Santiago</option><option>IMABOX</option><option>IMAVAL</option><option>INMEVET</option><option>San Rafael Centro de Salud</option><option>Villa Alemana Medica</option></select></div>
+<div><label for="eb">Buscar equipo</label><input id="eb" placeholder="tipo, modelo o serie…"></div>
+</div>
+<div class="bar"><button class="p" id="ego" type="button">Mostrar equipos</button></div>
+<p class="hint">Los equipos se agrupan por cliente, tipo y número de serie, según lo que escribieron los técnicos en cada informe.</p>
+</div>
+<div class="card">
+<div id="ecount" class="msg"></div>
+<div class="scroll"><table>
+<thead><tr><th>Cliente</th><th>Equipo</th><th>Modelo</th><th>Serie</th><th>Informes</th><th>Último</th><th></th></tr></thead>
+<tbody id="ebody"></tbody></table></div>
 </div>
 </section>
 
@@ -71,9 +91,10 @@
 <h2>Nuevo usuario</h2>
 <form id="uf" autocomplete="off">
 <div class="grid">
-<div><label for="ur">RUT</label><input id="ur" placeholder="12.345.678-9" required></div>
+<div><label for="ur">RUT (de la persona o de la empresa cliente)</label><input id="ur" placeholder="12.345.678-9" required></div>
 <div><label for="un">Nombre completo</label><input id="un" required></div>
-<div><label for="uo">Rol</label><select id="uo"><option value="tecnico">Técnico</option><option value="admin">Administrador</option></select></div>
+<div><label for="uo">Rol</label><select id="uo"><option value="tecnico">Técnico</option><option value="admin">Administrador</option><option value="cliente">Cliente (portal de informes)</option></select></div>
+<div id="ucw" hidden><label for="uc">Cliente</label><select id="uc"><option value="">Seleccione…</option><option>Centro de Salud San Rafael</option><option>Centro Imagenes INSI</option><option>Centro Medico Colina Salud</option><option>Centro Medico Isapre Fundacion</option><option>Centro Medico Rancagua</option><option>Centro Medico Santa Catalina Buin</option><option>Centro Medico Santa Catalina Paine</option><option>Centro Medico Veterinario Rucalaf</option><option>Centro Scanner Peñaflor</option><option>Clinica Alemana Osorno</option><option>Clinica Altacura</option><option>Clinica Miraflores</option><option>Clinica Veterinaria Hannover</option><option>Clinica Veterinaria Zoomundo</option><option>Diagnocal</option><option>Hospital Base San Jose Osorno</option><option>Hospital de Nueva Imperial</option><option>Hospital Veterinario Manuel Bulnes</option><option>Hospital Veterinario Santiago</option><option>IMABOX</option><option>IMAVAL</option><option>INMEVET</option><option>San Rafael Centro de Salud</option><option>Villa Alemana Medica</option></select></div>
 <div><label for="up">Contraseña temporal</label><div class="pwrow"><input id="up" required minlength="8"><button class="s" id="ugen" type="button">Generar</button></div></div>
 </div>
 <div class="bar"><button class="p" type="submit">Crear usuario</button></div>
@@ -139,15 +160,16 @@ $('logout').onclick=async function(){try{await api('POST','/api/logout')}catch(e
 
 // ---------- pestañas
 function tab(which){
-  $('sec-rep').hidden=which!=='rep';$('sec-usr').hidden=which!=='usr';
-  $('tb-rep').className=which==='rep'?'on':'';$('tb-usr').className=which==='usr'?'on':'';
+  $('sec-rep').hidden=which!=='rep';$('sec-eq').hidden=which!=='eq';$('sec-usr').hidden=which!=='usr';
+  $('tb-rep').className=which==='rep'?'on':'';$('tb-eq').className=which==='eq'?'on':'';$('tb-usr').className=which==='usr'?'on':'';
+  if(which==='eq'&&!$('ebody').children.length)loadEq();
 }
-$('tb-rep').onclick=function(){tab('rep')};$('tb-usr').onclick=function(){tab('usr')};
+$('tb-rep').onclick=function(){tab('rep')};$('tb-eq').onclick=function(){tab('eq')};$('tb-usr').onclick=function(){tab('usr')};
 
 // ---------- informes
 function qs(){
   var p=new URLSearchParams();
-  [['desde','fd'],['hasta','fh'],['cliente','fc'],['tecnico','ft'],['equipo','fe']].forEach(function(x){var v=$(x[1]).value.trim();if(v)p.set(x[0],v)});
+  [['desde','fd'],['hasta','fh'],['cliente','fc'],['tecnico','ft'],['equipo','fe'],['serie','fsr'],['q','fq']].forEach(function(x){var v=$(x[1]).value.trim();if(v)p.set(x[0],v)});
   return p.toString();
 }
 async function search(reset){
@@ -158,7 +180,7 @@ async function search(reset){
     j.items.forEach(function(r){
       var tr=el('tr');
       tr.appendChild(td(r.fecha));tr.appendChild(td(r.cliente,'wrap'));tr.appendChild(td(r.tecnico));
-      tr.appendChild(td(r.equipo));tr.appendChild(td(r.tipo));tr.appendChild(td(local(r.created_at)));tr.appendChild(td(size(r.size)));
+      tr.appendChild(td(r.equipo));tr.appendChild(td([r.modelo,r.serie&&'S/N '+r.serie].filter(Boolean).join(' · '),'wrap'));tr.appendChild(td(r.tipo));tr.appendChild(td(local(r.created_at)));tr.appendChild(td(size(r.size)));
       var c=el('td');
       var v=el('a','Ver');v.href='/api/reports/'+encodeURIComponent(r.id)+'/pdf';v.target='_blank';v.rel='noopener';
       var d=el('a','Descargar');d.href=v.href+'?download=1';d.style.marginLeft='10px';
@@ -171,8 +193,8 @@ async function search(reset){
 }
 $('fgo').onclick=function(){search(true)};
 $('more').onclick=function(){search(false)};
-$('fclr').onclick=function(){['fd','fh','fc','ft','fe'].forEach(function(i){$(i).value=''});search(true)};
-['fc','ft','fe'].forEach(function(i){$(i).addEventListener('keydown',function(e){if(e.key==='Enter')search(true)})});
+$('fclr').onclick=function(){['fd','fh','fc','ft','fe','fsr','fq'].forEach(function(i){$(i).value=''});search(true)};
+['fc','ft','fe','fsr','fq'].forEach(function(i){$(i).addEventListener('keydown',function(e){if(e.key==='Enter')search(true)})});
 $('fzip').onclick=function(){window.location.href='/api/reports.zip'+(lastQuery?'?'+lastQuery:'')};
 
 // ---------- usuarios
@@ -182,14 +204,14 @@ async function loadUsers(){
     j.items.forEach(function(u){
       var tr=el('tr');
       tr.appendChild(td(u.rut));tr.appendChild(td(u.name,'wrap'));
-      var r=el('td');r.appendChild(el('span',u.role==='admin'?'Administrador':'Técnico','tag'+(u.role==='admin'?' admin':'')));tr.appendChild(r);
+      var r=el('td');r.appendChild(el('span',u.role==='admin'?'Administrador':u.role==='cliente'?'Cliente':'Técnico','tag'+(u.role==='admin'?' admin':'')));if(u.role==='cliente')r.appendChild(el('div',u.cliente,'hint'));tr.appendChild(r);
       var s=el('td');s.appendChild(el('span',u.active?(u.must_change?'Clave temporal':'Activo'):'Desactivado','tag'+(u.active?'':' off')));tr.appendChild(s);
       tr.appendChild(td(String(u.informes)));
       var a=el('td'),self=u.id===ME.id;
       var bp=el('button','Nueva clave temporal','s');bp.type='button';bp.onclick=function(){resetPw(u)};a.appendChild(bp);
       if(!self){
         var bt=el('button',u.active?'Desactivar':'Activar','s');bt.type='button';bt.style.marginLeft='6px';bt.onclick=function(){toggle(u)};a.appendChild(bt);
-        var br=el('button',u.role==='admin'?'Hacer técnico':'Hacer admin','s');br.type='button';br.style.marginLeft='6px';br.onclick=function(){setRole(u)};a.appendChild(br);
+        if(u.role!=='cliente'){var br=el('button',u.role==='admin'?'Hacer técnico':'Hacer admin','s');br.type='button';br.style.marginLeft='6px';br.onclick=function(){setRole(u)};a.appendChild(br)}
       }
       tr.appendChild(a);b.appendChild(tr);
     });
@@ -204,15 +226,35 @@ function resetPw(u){
 function toggle(u){if(confirm((u.active?'¿Desactivar a ':'¿Activar a ')+u.name+'?'+(u.active?'\nDejará de poder entrar de inmediato. Sus informes se conservan.':'')))patch(u,{active:!u.active})}
 function setRole(u){var to=u.role==='admin'?'tecnico':'admin';if(confirm('¿Cambiar a '+u.name+' a '+(to==='admin'?'Administrador (podrá ver todos los informes y gestionar usuarios)':'Técnico')+'?'))patch(u,{role:to})}
 $('ugen').onclick=function(){$('up').value=genPw()};
+$('uo').onchange=function(){$('ucw').hidden=$('uo').value!=='cliente'};
 $('uf').onsubmit=async function(ev){
   ev.preventDefault();var m=$('umsg');m.className='msg';m.textContent='Creando…';
   var pw=$('up').value,nm=$('un').value;
   try{
-    await api('POST','/api/users',{rut:$('ur').value,name:nm,role:$('uo').value,password:pw});
-    m.className='msg good';m.textContent='Usuario creado. Entréguele estos datos a '+nm+': RUT '+$('ur').value+' · contraseña temporal '+pw+' (deberá cambiarla al entrar).';
+    var isCli=$('uo').value==='cliente';
+    await api('POST','/api/users',{rut:$('ur').value,name:nm,role:$('uo').value,cliente:isCli?$('uc').value:undefined,password:pw});
+    m.className='msg good';m.textContent='Usuario creado. Entréguele estos datos a '+nm+': RUT '+$('ur').value+' · contraseña temporal '+pw+' (deberá cambiarla al entrar).'+(isCli?' Entra en '+location.origin+'/portal.html y solo verá los informes de '+$('uc').value+'.':'');
     $('ur').value=$('un').value=$('up').value='';loadUsers();
   }catch(e){m.className='msg err';m.textContent=e.message}
 };
+// ---------- equipos
+async function loadEq(){
+  $('ecount').textContent='Cargando…';$('ecount').className='msg';
+  var p=new URLSearchParams();if($('ec').value)p.set('cliente',$('ec').value);var b=$('eb').value.trim();if(b)p.set('q',b);
+  try{
+    var j=await api('GET','/api/equipos?'+p.toString()),body=$('ebody');body.textContent='';
+    j.items.forEach(function(x){
+      var tr=el('tr');tr.appendChild(td(x.cliente,'wrap'));tr.appendChild(td(x.equipo));tr.appendChild(td(x.modelo));tr.appendChild(td(x.serie));
+      tr.appendChild(td(String(x.informes),'n'));tr.appendChild(td(x.ultimo));
+      var c=el('td'),k=el('button','Ver informes','s');k.type='button';
+      k.onclick=function(){$('fc').value=x.cliente;$('fe').value=x.equipo;$('fsr').value=x.serie;$('fd').value=$('fh').value=$('ft').value=$('fq').value='';tab('rep');search(true)};
+      c.appendChild(k);tr.appendChild(c);body.appendChild(tr);
+    });
+    $('ecount').textContent=j.items.length?j.items.length+' equipos':'No hay equipos con esos datos.';
+  }catch(e){$('ecount').textContent=e.message;$('ecount').className='msg err'}
+}
+$('ego').onclick=loadEq;
+$('eb').addEventListener('keydown',function(e){if(e.key==='Enter')loadEq()});
 init();
 })();
 </script>

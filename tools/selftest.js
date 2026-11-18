@@ -160,6 +160,62 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 'x'), Bu
     ok(fs.readdirSync(path.join(dir, 'comprobantes')).length === 1, 'solo queda el comprobante del gasto aprobado en disco');
     ok((await call('GET', '/gastos')).status === 200, 'la página /gastos se sirve');
 
+    console.log('Historial de equipos');
+    function dvOf(n) { let s = 0, m = 2; for (const d of String(n).split('').reverse()) { s += +d * m; m = m === 7 ? 2 : m + 1; } const r = 11 - (s % 11); return r === 11 ? '0' : r === 10 ? 'K' : String(r); }
+    const rep3 = Object.assign({}, rep, { id: '2026-11-10-eq1-1', fecha: '2026-11-10', modelo: 'Revolution CT', serie: 'SN-123', problema: 'Error en el tubo de rayos X', tipo: 'Reparación' });
+    ok((await call('POST', '/api/reports', rep3, t1)).status === 201, 'informe con modelo, serie y problema');
+    ok((await call('POST', '/api/reports', Object.assign({}, rep3, { id: '2026-11-20-eq1-2', fecha: '2026-11-20', problema: 'Mantención preventiva' }), t1)).status === 201, 'segundo informe del mismo equipo');
+    r = await call('GET', '/api/reports?serie=SN-123', undefined, adm);
+    ok(r.json.total === 2 && r.json.items[0].fecha === '2026-11-20' && r.json.items[0].modelo === 'Revolution CT', 'filtro por número de serie, más reciente primero');
+    ok((await call('GET', '/api/reports?q=tubo', undefined, adm)).json.total === 1, 'búsqueda libre en el problema reportado');
+    ok((await call('GET', '/api/reports?q=imaval', undefined, adm)).json.total === 1, 'búsqueda libre por cliente');
+    r = await call('GET', '/api/equipos', undefined, adm);
+    const g = r.json.items.find(x => x.serie === 'SN-123');
+    ok(g && g.informes === 2 && g.ultimo === '2026-11-20' && g.cliente === 'Clinica Alemana Osorno', 'equipos agrupados por cliente, equipo y serie');
+    ok((await call('GET', '/api/equipos', undefined, t2)).json.items.every(x => x.cliente === 'Imaval'), 'el técnico solo ve los equipos de sus informes');
+
+    console.log('Portal de clientes');
+    const crut = '76123456-' + dvOf(76123456);
+    ok((await call('POST', '/api/users', { rut: crut, name: 'Clínica Alemana Osorno', role: 'cliente', password: 'ClaveCli#2026' }, adm)).status === 400, 'cuenta de cliente sin cliente asociado → 400');
+    ok((await call('POST', '/api/users', { rut: crut, name: 'Clínica Alemana Osorno', role: 'cliente', cliente: 'Clinica Alemana Osorno', password: 'ClaveCli#2026' }, adm)).status === 201, 'el administrador crea la cuenta del cliente');
+    r = await call('POST', '/api/login', { rut: crut, password: 'ClaveCli#2026' });
+    ok(r.status === 200 && r.json.user.role === 'cliente' && r.json.user.cliente === 'Clinica Alemana Osorno' && r.json.user.mustChange, 'el cliente entra con clave temporal');
+    r = await call('POST', '/api/password', { current: 'ClaveCli#2026', password: 'MiClave#Cliente1' }, r.cookie);
+    const cli = r.cookie; ok(!!cli, 'el cliente cambia su clave');
+    r = await call('GET', '/api/reports', undefined, cli);
+    ok(r.json.total === 3 && r.json.items.every(x => x.cliente === 'Clinica Alemana Osorno' && x.subido_por === undefined), 'el cliente ve solo sus 3 informes, sin datos internos');
+    ok((await call('GET', '/api/reports?cliente=Imaval', undefined, cli)).json.total === 3, 'el cliente no puede ver a otro cliente cambiando el filtro');
+    ok((await call('GET', '/api/reports?q=imaval', undefined, cli)).json.total === 0, 'la búsqueda del cliente no sale de sus informes');
+    ok((await call('GET', '/api/reports/' + rep.id + '/pdf', undefined, cli)).status === 200, 'el cliente descarga un informe suyo');
+    ok((await call('GET', '/api/reports/2026-10-20-zzz999-1/pdf', undefined, cli)).status === 404, 'el cliente no descarga el informe de otro → 404');
+    ok((await call('GET', '/api/equipos', undefined, cli)).json.items.every(x => x.cliente === 'Clinica Alemana Osorno'), 'el cliente ve solo sus equipos');
+    ok((await call('POST', '/api/reports', rep3, cli)).status === 403, 'el cliente no puede subir informes → 403');
+    ok((await call('GET', '/api/expenses', undefined, cli)).status === 403, 'el cliente no ve gastos → 403');
+    ok((await call('GET', '/api/funds/balance', undefined, cli)).status === 403, 'el cliente no ve fondos → 403');
+    ok((await call('GET', '/api/users', undefined, cli)).status === 403, 'el cliente no ve usuarios → 403');
+    ok((await call('GET', '/api/reports.zip', undefined, cli)).status === 403, 'el cliente no descarga el ZIP → 403');
+    const cliId = (await call('GET', '/api/users', undefined, adm)).json.items.find(u => u.role === 'cliente').id;
+    ok((await call('PATCH', '/api/users/' + cliId, { cliente: 'Imaval' }, adm)).status === 200, 'el administrador cambia el cliente de la cuenta');
+    ok((await call('GET', '/api/me', undefined, cli)).status === 401, 'al cambiarla se cierra la sesión del cliente');
+
+    console.log('Fondos por rendir');
+    const anaId = (await call('GET', '/api/users', undefined, adm)).json.items.find(u => u.name.startsWith('Ana')).id;
+    ok((await call('POST', '/api/funds', { user_id: anaId, monto: 100000 }, t1)).status === 403, 'el técnico no entrega fondos → 403');
+    ok((await call('POST', '/api/funds', { user_id: anaId, monto: -5 }, adm)).status === 400, 'monto negativo → 400');
+    ok((await call('POST', '/api/funds', { user_id: cliId, monto: 5000 }, adm)).status === 400, 'no se entregan fondos a una cuenta de cliente');
+    ok((await call('POST', '/api/funds', { user_id: anaId, monto: 100000, nota: 'Viaje a Osorno' }, adm)).status === 201, 'entrega de fondos de $100.000');
+    ok((await call('POST', '/api/funds', { user_id: anaId, monto: 20000, tipo: 'devolucion' }, adm)).status === 201, 'devolución de $20.000');
+    r = await call('GET', '/api/funds/balance', undefined, t1);
+    ok(r.json.items.length === 1 && r.json.items[0].entregado === 100000 && r.json.items[0].devuelto === 20000 && r.json.items[0].gastado === 25990 && r.json.items[0].saldo === 54010, 'saldo del técnico: 100.000 − 20.000 − 25.990 = 54.010');
+    r = await call('GET', '/api/funds/balance', undefined, adm);
+    ok(r.json.items.length >= 2 && r.json.items.find(x => x.user_id === anaId).saldo === 54010, 'el administrador ve el saldo de todos');
+    r = await call('GET', '/api/funds', undefined, t2);
+    ok(r.json.items.length === 0, 'otro técnico no ve los movimientos de Ana');
+    r = await call('GET', '/api/funds', undefined, t1);
+    ok(r.json.items.length === 2 && r.json.items.some(x => x.monto === -20000), 'el técnico ve sus movimientos');
+    ok((await call('DELETE', '/api/funds/' + r.json.items[0].id, undefined, t1)).status === 403, 'el técnico no borra movimientos → 403');
+    ok((await call('DELETE', '/api/funds/' + r.json.items[0].id, undefined, adm)).status === 200, 'el administrador corrige un movimiento');
+
     console.log('Seguridad');
     ok((await call('POST', '/api/logout', undefined, adm, { Origin: 'https://sitio-malo.example' })).status === 403, 'petición con origen ajeno → 403 (CSRF)');
     ok((await call('GET', '/')).status === 200, 'la página principal se sirve');

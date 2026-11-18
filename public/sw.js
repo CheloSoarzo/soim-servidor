@@ -1,5 +1,5 @@
-const V='soim-informes-v5';
-const CORE=['./','./index.html','./manifest.webmanifest','./config.js','./theme.css','./carlito-Regular.woff','./carlito-Bold.woff','./logo.png','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
+const V='soim-informes-v6';
+const CORE=['./','./index.html','./manifest.webmanifest','./config.js','./theme.css','./carlito-Regular.woff','./carlito-Bold.woff','./logo.png','./gastos.html','./portal.html','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 const JS='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(V).then(c=>Promise.all([

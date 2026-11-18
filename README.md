@@ -72,7 +72,27 @@ Disponible en `https://SU-DOMINIO/gastos` (hay un enlace *Gastos* en la app y en
 - Cada técnico solo ve sus gastos y sus comprobantes; el administrador ve todos.
 - Los gastos necesitan conexión a internet (a diferencia de los informes, no se guardan en cola sin señal). Si falla el envío, los datos siguen en el formulario.
 
-Pendiente (no incluido): PDF de rendición mensual con los comprobantes adjuntos, fondos por rendir con saldo, y el portal de clientes.
+
+---
+
+## Portal de clientes
+
+Cada cliente puede tener su propia cuenta para ver sus informes anteriores en `https://SU-DOMINIO/portal.html`.
+
+- **Crear la cuenta:** en el panel, pestaña *Usuarios*, rol **Cliente (portal de informes)**, y elija el cliente de la lista. El RUT es el de la persona o empresa que va a entrar; la contraseña temporal se la entrega usted y el sistema le obliga a cambiarla al primer ingreso.
+- **Qué ve:** solo los informes cuyo cliente coincide **exactamente** con el cliente de su cuenta (buscar por texto, fechas, equipo o serie, ver y descargar el PDF, e historial por equipo). No ve gastos, técnicos internos, otros clientes ni el panel.
+- Si un mismo cliente figura con dos nombres en la lista (por ejemplo "Centro de Salud San Rafael" y "San Rafael Centro de Salud"), hay que crear una cuenta para cada nombre.
+- Para dar de baja a un cliente, desactive su cuenta en *Usuarios*.
+
+## Historial de equipos
+
+Los técnicos ya escriben marca/modelo y número de serie en cada informe; el sistema los guarda. En el panel, pestaña **Equipos**, se ve cada equipo (por cliente, tipo y serie) con su cantidad de informes y la fecha del último servicio, y *Ver informes* abre todos sus informes. En la app, el técnico tiene **Mis informes enviados** con buscador y ve cuáles quedaron **sin enviar** por falta de señal.
+
+## Gastos: fondos, rendición mensual y sin conexión
+
+- **Fondos por rendir:** en *Gastos → Fondos* el administrador registra entregas de dinero y devoluciones por técnico. Saldo = recibido − devuelto − gastos aprobados o pendientes. El técnico ve su propio saldo arriba del formulario de gastos.
+- **Rendición mensual en PDF:** en *Gastos registrados* → *Rendición mensual*: elija el mes (y el técnico si es administrador). El PDF trae el resumen de fondos, el detalle, totales por categoría, líneas de firma y las fotos de los comprobantes. Se arma en el navegador con la misma librería de PDF de los informes (necesita internet para cargarla la primera vez).
+- **Sin señal:** si un gasto nuevo no se puede enviar, queda guardado en el teléfono ("Gastos sin enviar") y se envía solo al volver la conexión. Corregir un gasto ya enviado sí requiere internet.
 
 ---
 

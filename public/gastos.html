@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#0b2a63">
 <title>Gastos - SOIM Chile</title>
 <link rel="stylesheet" href="theme.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="wide">
 
@@ -28,9 +29,11 @@
 <div class="who"><span id="who"></span><a href="index.html">Informes</a><span id="adl" hidden><a href="admin.html">Panel</a></span><button class="s" id="logout" type="button">Salir</button></div>
 </div>
 
-<div class="tabs"><button id="tb-new" class="on" type="button">Nuevo gasto</button><button id="tb-list" type="button">Gastos registrados</button></div>
+<div class="tabs"><button id="tb-new" class="on" type="button">Nuevo gasto</button><button id="tb-list" type="button">Gastos registrados</button><button id="tb-fun" type="button">Fondos</button></div>
 
 <section id="sec-new">
+<div id="mybal" class="card" hidden></div>
+<div id="gpend" class="card" hidden><h2>Gastos sin enviar</h2><div id="gplist"></div><div class="bar"><button class="s" id="gpretry" type="button">Reintentar envío</button></div></div>
 <form id="ef" class="card" autocomplete="off" novalidate>
 <h2 id="ftitle">Registrar gasto</h2>
 <div class="grid">
@@ -78,7 +81,40 @@
 <thead><tr><th>Fecha</th><th id="thtec">Técnico</th><th>Categoría</th><th>Detalle</th><th>Monto</th><th>Estado</th><th></th></tr></thead>
 <tbody id="lbody"></tbody></table></div>
 </div>
+<div class="card">
+<h2>Rendición mensual en PDF</h2>
+<div class="grid">
+<div><label for="rmes">Mes</label><input id="rmes" type="month"></div>
+<div id="rtw" hidden><label for="rtec">Técnico</label><select id="rtec"><option value="">Elija…</option></select></div>
+</div>
+<p class="hint">Incluye los gastos aprobados y pendientes del mes (no los rechazados), el resumen de fondos y las fotos de los comprobantes.</p>
+<div id="rmsg" class="msg" role="status"></div>
+<div class="bar"><button class="p" id="rpdf" type="button">Generar PDF de rendición</button></div>
+</div>
 </section>
+
+<section id="sec-fun" hidden>
+<div id="fadm" class="card" hidden>
+<h2>Registrar entrega o devolución</h2>
+<form id="ff" autocomplete="off">
+<div class="grid">
+<div><label for="ftec">Técnico</label><select id="ftec"><option value="">Elija…</option></select></div>
+<div><label for="ftipo">Movimiento</label><select id="ftipo"><option value="entrega">Entrega de fondos</option><option value="devolucion">Devolución del técnico</option></select></div>
+<div><label for="fmonto">Monto (pesos CLP)</label><input id="fmonto" type="number" inputmode="numeric" min="1" step="1" required></div>
+<div><label for="ffecha">Fecha</label><input id="ffecha" type="date"></div>
+</div>
+<label for="fnota">Nota (opcional)</label><input id="fnota" maxlength="200" placeholder="Ej.: Viaje a Osorno, 2 días">
+<div id="fmsg" class="msg" role="status"></div>
+<div class="bar"><button class="p" type="submit">Registrar movimiento</button></div>
+</form>
+</div>
+<div class="card"><h2>Saldos</h2>
+<p class="hint">Saldo = fondos recibidos − devoluciones − gastos aprobados o pendientes. Un saldo en rojo significa que el técnico gastó más de lo recibido.</p>
+<div class="scroll"><table><thead><tr><th>Técnico</th><th>Recibido</th><th>Devuelto</th><th>Gastado</th><th>Saldo</th></tr></thead><tbody id="fbbody"></tbody></table></div></div>
+<div class="card"><h2>Movimientos</h2><div id="fmcount" class="msg"></div>
+<div class="scroll"><table><thead><tr><th>Fecha</th><th>Técnico</th><th>Movimiento</th><th>Monto</th><th>Nota</th><th></th></tr></thead><tbody id="fmbody"></tbody></table></div></div>
+</section>
+
 </main>
 
 <div id="rj" class="ov" hidden><div class="card"><h1>Rechazar gasto</h1><p id="rjinfo"></p><label for="rjm">Motivo (obligatorio)</label><textarea id="rjm" maxlength="500"></textarea><div id="rjerr" class="msg err"></div><div class="bar"><button class="p" id="rjok" type="button" style="width:auto">Rechazar</button><button id="rjno" type="button">Cancelar</button></div></div></div>
@@ -105,15 +141,20 @@ async function api(method,url,body){
 // ---------- sesión
 function showLogin(m){$('app').hidden=true;$('login').hidden=false;$('lf').hidden=false;$('chg').hidden=true;$('lmsg').textContent=m||'';$('lpw').value=''}
 function enter(){
+  if(ME.role==='cliente'){location.replace('portal.html');return}
   $('login').hidden=true;$('app').hidden=false;$('who').textContent=ME.name;
   var adm=ME.role==='admin';$('adl').hidden=!adm;$('fuw').hidden=!adm;$('fcsv').hidden=!adm;$('thtec').hidden=false;
+  $('fadm').hidden=!adm;$('rtw').hidden=!adm;$('ffecha').value=today();var d0=new Date();$('rmes').value=d0.getFullYear()+'-'+('0'+(d0.getMonth()+1)).slice(-2);
   if(adm)loadTecs();
-  resetForm();loadReports();
+  resetForm();loadReports();refreshBal();gshow();gflush();
 }
 async function init(){
   try{var j=await api('GET','/api/me');ME=j.user;
     if(ME.mustChange){$('login').hidden=false;$('lf').hidden=true;$('chg').hidden=false}else enter()}
-  catch(e){showLogin(e.status===401?'':'Sin conexión con el servidor.')}
+  catch(e){
+    if(e.status===undefined){try{ME=JSON.parse(localStorage.getItem('soim-me')||'null')}catch(_){ME=null}
+      if(ME&&ME.role!=='cliente'&&!ME.mustChange){enter();return}}
+    showLogin(e.status===401?'':'Sin conexión con el servidor.')}
 }
 $('lf').onsubmit=async function(ev){
   ev.preventDefault();$('lmsg').textContent='Ingresando…';
@@ -122,8 +163,8 @@ $('lf').onsubmit=async function(ev){
   catch(e){$('lmsg').textContent=e.message;$('lpw').value=''}
 };
 $('logout').onclick=async function(){try{await api('POST','/api/logout')}catch(e){}ME=null;showLogin()};
-function tab(w){$('sec-new').hidden=w!=='new';$('sec-list').hidden=w!=='list';$('tb-new').className=w==='new'?'on':'';$('tb-list').className=w==='list'?'on':'';if(w==='list')search()}
-$('tb-new').onclick=function(){tab('new')};$('tb-list').onclick=function(){tab('list')};
+function tab(w){$('sec-new').hidden=w!=='new';$('sec-list').hidden=w!=='list';$('sec-fun').hidden=w!=='fun';$('tb-new').className=w==='new'?'on':'';$('tb-list').className=w==='list'?'on':'';$('tb-fun').className=w==='fun'?'on':'';if(w==='list')search();if(w==='fun')loadFun()}
+$('tb-new').onclick=function(){tab('new')};$('tb-list').onclick=function(){tab('list')};$('tb-fun').onclick=function(){tab('fun')};
 
 // ---------- formulario
 async function loadReports(){
@@ -168,14 +209,19 @@ $('ef').onsubmit=async function(ev){
   $('esave').disabled=true;m.textContent='Enviando…';
   try{
     if(editing)await api('PUT','/api/expenses/'+encodeURIComponent(editing),b);else await api('POST','/api/expenses',b);
-    var was=!!editing;resetForm();m.className='msg good';m.textContent=was?'Gasto corregido y enviado de nuevo a revisión.':'Gasto enviado. Quedó pendiente de aprobación.';
-  }catch(e){m.className='msg err';m.textContent=e.status===undefined?'Sin conexión. Los gastos requieren internet: intente de nuevo cuando tenga señal (sus datos siguen en el formulario).':e.message}
+    var was=!!editing;resetForm();m.className='msg good';m.textContent=was?'Gasto corregido y enviado de nuevo a revisión.':'Gasto enviado. Quedó pendiente de aprobación.';refreshBal();
+  }catch(e){
+    if(e.status===undefined&&!editing){
+      try{await gput({id:b.id,uid:ME.id,body:b});resetForm();m.className='msg good';m.textContent='Sin señal: el gasto quedó guardado en el teléfono y se enviará solo cuando vuelva la conexión.';gshow()}
+      catch(e2){m.className='msg err';m.textContent='No se pudo guardar el gasto en el teléfono. Intente de nuevo con señal.'}
+    }else{m.className='msg err';m.textContent=e.status===undefined?'Sin conexión: para corregir un gasto ya enviado hace falta internet.':e.message}
+  }
   $('esave').disabled=false;
 };
 $('ecancel').onclick=function(){resetForm()};
 
 // ---------- listado
-async function loadTecs(){try{var j=await api('GET','/api/users'),s=$('fu');while(s.options.length>1)s.remove(1);j.items.forEach(function(u){var o=el('option',u.name);o.value=u.id;s.appendChild(o)})}catch(e){}}
+async function loadTecs(){try{var j=await api('GET','/api/users'),s=$('fu');while(s.options.length>1)s.remove(1);TECS=j.items.filter(function(u){return u.role!=='cliente'&&u.active});j.items.filter(function(u){return u.role!=='cliente'}).forEach(function(u){var o=el('option',u.name);o.value=u.id;s.appendChild(o)});fillTecSelects()}catch(e){}}
 Object.keys(CATN).forEach(function(k){var o=el('option',CATN[k]);o.value=k;$('fcat').appendChild(o)});
 function qs(){var p=new URLSearchParams();[['desde','fd'],['hasta','fh'],['estado','fs'],['categoria','fcat'],['user','fu'],['cliente','fcl']].forEach(function(x){var v=$(x[1]).value.trim();if(v)p.set(x[0],v)});return p.toString()}
 function sumTable(title,rows,fmt){
@@ -236,6 +282,158 @@ function edit(x){
   $('ftitle').textContent='Corregir gasto';$('esave').textContent='Guardar y reenviar a revisión';$('ecancel').hidden=false;syncDoc();window.scrollTo(0,0);
 }
 async function del(x){if(!confirm('¿Eliminar este gasto de '+money(x.monto)+'?'))return;try{await api('DELETE','/api/expenses/'+encodeURIComponent(x.id));search()}catch(e){alert(e.message)}}
+// ---------- cola de gastos sin conexión
+function gdb(){return new Promise(function(res,rej){var q=indexedDB.open('soim-g',1);q.onupgradeneeded=function(){q.result.createObjectStore('gq',{keyPath:'id'})};q.onsuccess=function(){res(q.result)};q.onerror=function(){rej(q.error)}})}
+function gdo(mode,fn){return gdb().then(function(db){return new Promise(function(res,rej){var t=db.transaction('gq',mode),r=fn(t.objectStore('gq'));t.oncomplete=function(){res(r&&r.result)};t.onerror=function(){rej(t.error)}})})}
+function gall(){return gdo('readonly',function(s){return s.getAll()}).then(function(a){return (a||[]).filter(function(x){return ME&&x.uid===ME.id})})}
+function gput(o){return gdo('readwrite',function(s){return s.put(o)})}
+function gdel(id){return gdo('readwrite',function(s){return s.delete(id)})}
+var gflushing=false;
+async function gflush(){
+  if(!ME||gflushing||!navigator.onLine){await gshow();return 0}
+  gflushing=true;var n=0;
+  try{var all=await gall();
+    for(var i=0;i<all.length;i++){
+      try{await api('POST','/api/expenses',all[i].body);await gdel(all[i].id);n++}
+      catch(e){if(e.status===401||e.status===undefined)break;all[i].err=e.message;await gput(all[i])}
+    }}catch(e){}
+  gflushing=false;await gshow();if(n)refreshBal();
+  return n;
+}
+async function gshow(){
+  var all=[];try{all=await gall()}catch(e){}
+  $('gpend').hidden=!all.length;var box=$('gplist');box.textContent='';
+  all.forEach(function(x){
+    var d=el('div',null,'item'),l=el('div');
+    l.appendChild(el('b',money(x.body.monto)+' · '+(CATN[x.body.categoria]||x.body.categoria)));
+    l.appendChild(el('small',x.body.fecha+(x.err?' · No se pudo enviar: '+x.err:' · Esperando señal')));
+    var k=el('button','Eliminar','s d');k.type='button';k.onclick=async function(){if(confirm('¿Eliminar este gasto sin enviar? No se podrá recuperar.')){await gdel(x.id);gshow()}};
+    d.appendChild(l);d.appendChild(k);box.appendChild(d);
+  });
+}
+$('gpretry').onclick=async function(){var n=await gflush();var all=await gall();$('emsg').className='msg '+(all.length?'err':'good');$('emsg').textContent=all.length?'Siguen sin enviar: revise la señal o los avisos de cada gasto.':'Todo enviado ✓'};
+window.addEventListener('online',function(){gflush()});
+
+// ---------- fondos por rendir
+var TECS=[];
+function balCard(b){
+  var c=$('mybal');c.textContent='';
+  if(!b||(!b.entregado&&!b.devuelto)){c.hidden=true;return}
+  c.hidden=false;c.appendChild(el('h2','Mi fondo por rendir'));
+  var g=el('div',null,'stats');
+  function st(t,v,cls){var d=el('div',null,'stat'+(cls?' '+cls:''));d.appendChild(el('b',money(v)));d.appendChild(el('span',t));g.appendChild(d)}
+  st('Recibido',b.entregado-b.devuelto);st('Gastado',b.gastado);st(b.saldo<0?'A su favor':'Saldo por rendir',Math.abs(b.saldo),b.saldo<0?'neg':'');
+  c.appendChild(g);
+}
+async function refreshBal(){try{var j=await api('GET','/api/funds/balance');var me=j.items.filter(function(x){return x.user_id===ME.id})[0];balCard(me)}catch(e){}}
+async function loadFun(){
+  try{
+    var r=await Promise.all([api('GET','/api/funds/balance'),api('GET','/api/funds')]),adm=ME.role==='admin';
+    var bb=$('fbbody');bb.textContent='';
+    r[0].items.forEach(function(x){
+      if(!adm&&false)return;
+      var tr=el('tr');tr.appendChild(el('td',x.tecnico));tr.appendChild(el('td',money(x.entregado),'n'));tr.appendChild(el('td',money(x.devuelto),'n'));tr.appendChild(el('td',money(x.gastado),'n'));
+      var s=el('td',(x.saldo<0?'-':'')+money(Math.abs(x.saldo)),'n');if(x.saldo<0)s.className='n neg';tr.appendChild(s);bb.appendChild(tr);
+    });
+    var mb=$('fmbody');mb.textContent='';
+    r[1].items.forEach(function(x){
+      var tr=el('tr');tr.appendChild(el('td',x.fecha));tr.appendChild(el('td',x.tecnico));tr.appendChild(el('td',x.monto<0?'Devolución':'Entrega'));tr.appendChild(el('td',money(Math.abs(x.monto)),'n'));tr.appendChild(el('td',x.nota||'','wrap'));
+      var c=el('td');if(adm){var k=el('button','Eliminar','s d');k.type='button';k.onclick=async function(){if(!confirm('¿Eliminar este movimiento de '+money(Math.abs(x.monto))+'?'))return;try{await api('DELETE','/api/funds/'+x.id);loadFun();refreshBal()}catch(e){alert(e.message)}};c.appendChild(k)}
+      tr.appendChild(c);mb.appendChild(tr);
+    });
+    $('fmcount').textContent=r[1].items.length?'':'Todavía no hay movimientos de fondos.';
+  }catch(e){$('fmcount').textContent=e.message;$('fmcount').className='msg err'}
+}
+function fillTecSelects(){
+  ['ftec','rtec'].forEach(function(id){var s=$(id);if(!s)return;while(s.options.length>(id==='rtec'?1:1))s.remove(1);TECS.forEach(function(u){var o=el('option',u.name);o.value=u.id;s.appendChild(o)})});
+}
+$('ff').onsubmit=async function(ev){
+  ev.preventDefault();var m=$('fmsg');m.className='msg';
+  if(!$('ftec').value){m.className='msg err';m.textContent='Elija un técnico.';return}
+  try{await api('POST','/api/funds',{user_id:+$('ftec').value,tipo:$('ftipo').value,monto:$('fmonto').value,fecha:$('ffecha').value,nota:$('fnota').value});
+    m.className='msg good';m.textContent='Movimiento registrado.';$('fmonto').value=$('fnota').value='';loadFun();refreshBal()}
+  catch(e){m.className='msg err';m.textContent=e.message}
+};
+
+// ---------- PDF de rendición mensual
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fetchImg(url){
+  return fetch(url,{credentials:'same-origin'}).then(function(r){
+    if(!r.ok)return null;var ct=r.headers.get('content-type')||'';if(ct.indexOf('image/')!==0)return {pdf:true};
+    return r.blob().then(function(b){return new Promise(function(res){var f=new FileReader();f.onload=function(){var d=f.result,im=new Image();
+      im.onload=function(){res({url:d,w:im.width,h:im.height,type:ct.indexOf('png')>-1?'PNG':'JPEG'})};im.onerror=function(){res(null)};im.src=d};f.onerror=function(){res(null)};f.readAsDataURL(b)})});
+  }).catch(function(){return null});
+}
+async function makeRendicion(){
+  var m=$('rmsg');m.className='msg';
+  if(!window.jspdf){m.className='msg err';m.textContent='No se pudo cargar la librería de PDF. Revise su conexión y recargue la página.';return}
+  var mes=$('rmes').value,uid=ME.role==='admin'?+$('rtec').value:ME.id;
+  if(!mes){m.className='msg err';m.textContent='Elija el mes.';return}
+  if(!uid){m.className='msg err';m.textContent='Elija un técnico.';return}
+  $('rpdf').disabled=true;m.textContent='Reuniendo los gastos…';
+  try{
+    var y=+mes.slice(0,4),mo=+mes.slice(5,7),last=new Date(y,mo,0).getDate(),desde=mes+'-01',hasta=mes+'-'+('0'+last).slice(-2);
+    var r=await Promise.all([api('GET','/api/expenses?user='+uid+'&desde='+desde+'&hasta='+hasta+'&limit=1000'),api('GET','/api/funds?user='+uid),api('GET','/api/funds/balance')]);
+    var items=r[0].items.filter(function(x){return x.estado!=='rechazado'}).sort(function(a,b){return a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0});
+    if(!items.length){m.className='msg err';m.textContent='No hay gastos (aprobados o pendientes) en ese mes.';$('rpdf').disabled=false;return}
+    var tecName=items[0].tecnico,bal=r[2].items.filter(function(x){return x.user_id===uid})[0]||{entregado:0,devuelto:0,gastado:0,saldo:0};
+    var mov=r[1].items.filter(function(x){return x.fecha>=desde&&x.fecha<=hasta});
+    var recibido=0,devuelto=0;mov.forEach(function(x){if(x.monto>0)recibido+=x.monto;else devuelto-=x.monto});
+    var total=0,porCat={};items.forEach(function(x){total+=x.monto;porCat[x.categoria]=(porCat[x.categoria]||0)+x.monto});
+    var logo=await fetchImg('logo.png');
+    var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,L=15,R=195,Y=0;
+    function ensure(h){if(Y+h>272){doc.addPage();Y=18}}
+    if(logo&&logo.url)doc.addImage(logo.url,'PNG',L,10,52,Math.round(52*logo.h/logo.w*10)/10);
+    doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(11,42,99);doc.text('Rendición de gastos',R,17,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(60);doc.text(MESES[mo-1].charAt(0).toUpperCase()+MESES[mo-1].slice(1)+' de '+y,R,23.5,{align:'right'});
+    doc.setFontSize(10);doc.text('Técnico: '+tecName,R,29,{align:'right'});
+    doc.setDrawColor(0,121,127);doc.setLineWidth(.8);doc.line(L,34,R,34);
+    Y=42;doc.setTextColor(20);
+    // resumen
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('Resumen',L,Y);Y+=6;doc.setFont('helvetica','normal');doc.setFontSize(10);
+    [['Fondos recibidos en el mes',money(recibido)],['Devoluciones en el mes',money(devuelto)],['Gastos del mes ('+items.length+')',money(total)],['Saldo acumulado a la fecha',(bal.saldo<0?'-':'')+money(Math.abs(bal.saldo))+(bal.saldo<0?' (a favor del técnico)':'')]].forEach(function(p){doc.text(p[0],L,Y);doc.text(p[1],R,Y,{align:'right'});Y+=5.5});
+    Y+=4;
+    // tabla
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('Detalle de gastos',L,Y);Y+=5;
+    function head(){doc.setFillColor(234,240,243);doc.rect(L,Y-4.2,R-L,6.4,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('Fecha',L+1,Y);doc.text('Categoría',L+24,Y);doc.text('Detalle',L+52,Y);doc.text('Estado',L+128,Y);doc.text('Monto',R-1,Y,{align:'right'});Y+=5;doc.setFont('helvetica','normal')}
+    head();doc.setFontSize(9);
+    items.forEach(function(x){
+      var txt=(DOCN[x.doc_tipo]||x.doc_tipo)+(x.doc_numero?' N° '+x.doc_numero:'')+(x.proveedor?' · '+x.proveedor:'')+(x.cliente?' · '+x.cliente:'');
+      var l1=doc.splitTextToSize(txt,74),l2=doc.splitTextToSize(x.justificacion,74),h=Math.max(7,(l1.length+l2.length)*4+3);
+      if(Y+h>272){doc.addPage();Y=18;head();doc.setFontSize(9)}
+      doc.setTextColor(20);doc.text(x.fecha,L+1,Y);doc.text(doc.splitTextToSize(CATN[x.categoria]||x.categoria,26),L+24,Y);
+      doc.text(l1,L+52,Y);doc.setTextColor(90);doc.text(l2,L+52,Y+l1.length*4);doc.setTextColor(20);
+      doc.text(ESTN[x.estado]||x.estado,L+128,Y);doc.text(money(x.monto),R-1,Y,{align:'right'});
+      Y+=h;doc.setDrawColor(215);doc.setLineWidth(.2);doc.line(L,Y-3.2,R,Y-3.2);
+    });
+    ensure(40);Y+=3;doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Total del mes',R-40,Y);doc.text(money(total),R-1,Y,{align:'right'});Y+=8;
+    doc.setFontSize(10);doc.text('Por categoría',L,Y);Y+=5;doc.setFont('helvetica','normal');doc.setFontSize(9);
+    Object.keys(porCat).forEach(function(k){ensure(6);doc.text(CATN[k]||k,L+1,Y);doc.text(money(porCat[k]),L+70,Y,{align:'right'});Y+=4.6});
+    var pend=items.filter(function(x){return x.estado==='pendiente'}).length;
+    if(pend){Y+=2;ensure(8);doc.setTextColor(143,86,0);doc.text(pend+' gasto(s) aún pendientes de aprobación.',L,Y);doc.setTextColor(20);Y+=5}
+    ensure(34);Y+=16;doc.setDrawColor(60);doc.setLineWidth(.3);doc.line(L+5,Y,L+75,Y);doc.line(R-75,Y,R-5,Y);doc.setFontSize(9);doc.text('Firma del técnico',L+40,Y+4.5,{align:'center'});doc.text('Aprobado por',R-40,Y+4.5,{align:'center'});
+    // comprobantes
+    var conRec=items.filter(function(x){return x.tiene_comprobante}),k=0,cell=0;
+    for(var i=0;i<conRec.length;i++){
+      m.textContent='Agregando comprobantes ('+(i+1)+' de '+conRec.length+')…';
+      var x=conRec[i],img=await fetchImg('/api/expenses/'+encodeURIComponent(x.id)+'/receipt');
+      if(cell%4===0){doc.addPage();doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(11,42,99);doc.text('Comprobantes',L,15);doc.setTextColor(20)}
+      var cx=L+(cell%2)*92,cy=22+Math.floor((cell%4)/2)*130,cw=88,ch=122;
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.text(x.fecha+' · '+money(x.monto)+' · '+(CATN[x.categoria]||x.categoria),cx,cy);
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(90);doc.text(doc.splitTextToSize((x.proveedor||'')+(x.doc_numero?' · N° '+x.doc_numero:''),cw)[0]||'',cx,cy+4);doc.setTextColor(20);
+      doc.setDrawColor(200);doc.rect(cx,cy+6,cw,ch-8);
+      if(img&&img.url){var sc=Math.min((cw-2)/img.w,(ch-10)/img.h),iw=img.w*sc,ih=img.h*sc;doc.addImage(img.url,img.type,cx+(cw-iw)/2,cy+7+((ch-10)-ih)/2,iw,ih)}
+      else{doc.setFontSize(9);doc.text(img&&img.pdf?'Comprobante en PDF: se ve en el sistema.':'No se pudo cargar el comprobante.',cx+3,cy+14)}
+      cell++;
+    }
+    var n=doc.getNumberOfPages();
+    for(var p=1;p<=n;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120);doc.text('Soarzo y Soarzo Limitada · 77.000.218-4 · Valdes Vergara 451, Viña del Mar',L,288);doc.text('Página '+p+' de '+n,R,288,{align:'right'})}
+    doc.save('Rendicion_'+mes+'_'+tecName.replace(/[^\w]+/g,'_')+'.pdf');
+    m.className='msg good';m.textContent='PDF listo ('+items.length+' gastos, '+conRec.length+' comprobantes).';
+  }catch(e){m.className='msg err';m.textContent='No se pudo generar el PDF: '+(e&&e.message||e)}
+  $('rpdf').disabled=false;
+}
+$('rpdf').onclick=makeRendicion;
 init();
 })();
 </script>
