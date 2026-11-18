@@ -18,8 +18,9 @@
 <body class="pg-informe">
 <div id="login" class="ov" hidden>
 <form id="lf" class="card" autocomplete="on">
-<h1>Iniciar sesión</h1>
-<p>Ingrese con su RUT y contraseña.</p>
+<div class="tabs" id="lmode" role="tablist" aria-label="Tipo de ingreso"><button type="button" class="on" data-m="soim" role="tab" aria-selected="true">SOIM Chile</button><button type="button" data-m="cli" role="tab" aria-selected="false">Clientes</button></div>
+<h1 id="lh">Iniciar sesión</h1>
+<p id="lp">Ingrese con su RUT y contraseña.</p>
 <label for="lrut">RUT</label><input id="lrut" autocomplete="username" autocapitalize="off" placeholder="12.345.678-9" required>
 <label for="lpw">Contraseña</label><input id="lpw" type="password" autocomplete="current-password" required>
 <div id="lmsg" class="err" role="alert" style="min-height:1.3em;margin:8px 0"></div>
@@ -557,6 +558,16 @@ $('share').onclick=async function(){
   await sendCloud(r);
 };
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(function(){})})}
+})();
+
+// ---- Tipo de ingreso: equipo SOIM Chile o clientes (la cuenta decide a dónde se entra)
+(function(){
+  var T={soim:['Iniciar sesión','Ingrese con su RUT y contraseña.'],cli:['Portal de clientes','Ingrese con el RUT y la clave que le entregó SOIM Chile para ver sus informes anteriores.']};
+  var bs=document.querySelectorAll('#lmode button');
+  Array.prototype.forEach.call(bs,function(b){b.onclick=function(){
+    Array.prototype.forEach.call(bs,function(x){var on=x===b;x.className=on?'on':'';x.setAttribute('aria-selected',on)});
+    var g=function(i){return document.getElementById(i)},t=T[b.getAttribute('data-m')];g('lh').textContent=t[0];g('lp').textContent=t[1];g('lrut').focus();
+  }});
 })();
 </script>
 </body>
