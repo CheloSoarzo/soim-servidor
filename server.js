@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const sec = require('./lib/security');
+const { extractFields } = require('./lib/pdffields');
 const { writeZip } = require('./lib/zip');
 
 // ------------------------------------------------------------------ configuración
@@ -271,7 +272,7 @@ route('POST', '/api/logout', ctx => { clearSession(ctx.res); send(ctx.res, 200, 
 
 route('GET', '/api/me', ctx => { const u = needUser(ctx, { allowMust: true }); send(ctx.res, 200, { user: pub(u) }); });
 
-// ---- Lectura automática de un informe PDF con IA (opcional: requiere ANTHROPIC_API_KEY)
+// ---- Lectura automática de un informe PDF: primero el texto del PDF (gratis); IA externa solo si hay ANTHROPIC_API_KEY
 const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
 const AI_URL = process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com/v1/messages';
 const AI_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
@@ -291,16 +292,20 @@ function aiCall(pdfB64) {
     rq.on('timeout', () => rq.destroy(new Error('timeout'))); rq.on('error', reject); rq.end(body);
   });
 }
-route('GET', '/api/extract/status', ctx => { needStaff(ctx); send(ctx.res, 200, { enabled: !!AI_KEY }); });
+route('GET', '/api/extract/status', ctx => { needStaff(ctx); send(ctx.res, 200, { enabled: true, ia: !!AI_KEY }); });
 route('POST', '/api/extract', async ctx => {
   const u = needStaff(ctx);
-  if (!AI_KEY) throw new HttpError(503, 'La lectura automática no está activada en el servidor.');
   if (!hit('ai:' + u.id, 60, 60 * 60e3)) throw new HttpError(429, 'Demasiadas lecturas seguidas. Intente más tarde.');
   const b = await readJson(ctx.req, 35 * 1024 * 1024);
   if (typeof b.pdf !== 'string' || !b.pdf) throw new HttpError(400, 'Falta el PDF.');
   const buf = Buffer.from(b.pdf, 'base64');
   if (buf.length < 100 || buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'El archivo no es un PDF válido.');
   if (buf.length > MAX_PDF) throw new HttpError(413, 'El PDF es demasiado grande (máximo 25 MB).');
+  // 1) lectura local del texto del PDF (gratis, sin enviar nada a terceros)
+  const loc = extractFields(buf);
+  if (loc.found >= 3) return send(ctx.res, 200, { ok: true, data: loc.fields, via: 'texto' });
+  // 2) opcional: IA externa, solo si el administrador configuró ANTHROPIC_API_KEY
+  if (!AI_KEY) throw new HttpError(422, loc.chars ? 'No se reconocieron los datos en este PDF. Complételos a mano.' : 'Este PDF parece escaneado (sin texto), no se puede leer. Complete los datos a mano.');
   let out = {};
   try {
     const j = await aiCall(buf.toString('base64'));
@@ -311,9 +316,8 @@ route('POST', '/api/extract', async ctx => {
   for (const k of ['cliente', 'equipo', 'modelo', 'serie', 'tipo', 'tecnico']) r[k] = clean(out[k], 150);
   r.problema = clean(out.problema, 300);
   r.fecha = DATE_RE.test(String(out.fecha || '')) ? String(out.fecha) : '';
-  send(ctx.res, 200, { ok: true, data: r });
+  send(ctx.res, 200, { ok: true, data: r, via: 'ia' });
 });
-
 route('POST', '/api/password', async ctx => {
   const u = needUser(ctx, { allowMust: true });
   if (!peek('pw:' + u.id, 10, 15 * 60e3)) throw new HttpError(429, 'Demasiados intentos. Espere unos minutos.');

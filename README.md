@@ -75,9 +75,11 @@ Disponible en `https://SU-DOMINIO/gastos` (hay un enlace *Gastos* en la app y en
 
 ---
 
-## Lectura automática de informes con IA
+## Lectura automática de informes (gratis)
 
-Al subir un PDF ya elaborado, el sistema puede leerlo y rellenar fecha, cliente, equipo, modelo, serie, tipo, técnico y resumen. El técnico revisa y corrige antes de subir. Para activarlo, agregue en `/opt/soim/.env` la línea `ANTHROPIC_API_KEY=su-clave` (se crea en console.anthropic.com) y reinicie con `docker compose up -d`. Sin la clave, el formulario funciona igual pero a mano. El PDF se envía a la API de Anthropic solo para esa lectura; cada lectura tiene un costo pequeño por uso.
+Al subir un PDF ya elaborado, el servidor lee su texto y rellena fecha, cliente, equipo, modelo, serie, tipo, técnico y resumen; el técnico revisa antes de subir. Es local (sin costo ni envío a terceros) y funciona con PDF que tengan texto: los hechos en esta app, Word/LibreOffice/ReportLab, etc. Reconoce etiquetas como Cliente, Fecha, Equipo, Marca/Modelo, N° de serie, Técnico, Tipo de servicio, Problema/Falla, ya sea "Etiqueta: valor", en tabla o con la etiqueta encima del valor. Los PDF escaneados (imagen) no se pueden leer así.
+
+Opcional: si algún día se quiere cubrir también los escaneados o formatos raros, se puede agregar `ANTHROPIC_API_KEY=...` en `/opt/soim/.env` y se usará solo cuando la lectura local no reconozca el documento (tiene costo y envía el PDF a Anthropic). Sin esa clave no se cobra nada.
 
 ## Subir informes anteriores
 

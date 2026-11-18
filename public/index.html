@@ -661,7 +661,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
     var file=fi.files[0],m=g('upai');m.textContent='';if(!file||file.size>25*1024*1024||!navigator.onLine)return;
     if(on===false)return;
     var go=function(){
-      m.textContent='Leyendo el informe con IA…';
+      m.textContent='Leyendo el informe…';
       var rd=new FileReader();rd.onload=function(){
         fetch('/api/extract',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdf:String(rd.result).split(',')[1]})})
         .then(function(r){return r.json().catch(function(){return{}}).then(function(j){
