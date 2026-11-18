@@ -93,6 +93,21 @@
 <div style="height:8px"></div>
 <button id="save" style="width:100%">Guardar borrador en este dispositivo</button>
 
+<div class="card" style="margin-top:16px"><h2>Subir informe ya elaborado</h2>
+<p class="hint" style="margin-top:0">Para informes anteriores que ya tiene en PDF. Se guarda con los demás y el cliente lo verá en su portal.</p>
+<form id="upf" autocomplete="off">
+<label for="upfile">Archivo PDF (máx. 25 MB)</label><input id="upfile" type="file" accept="application/pdf,.pdf" required>
+<label for="upfecha">Fecha del informe</label><input id="upfecha" type="date" required>
+<label for="upcli">Cliente</label><input id="upcli" required maxlength="150" placeholder="Nombre del cliente">
+<label for="upequ">Equipo</label><input id="upequ" maxlength="100" placeholder="Ej: Ecógrafo">
+<label for="upmod">Modelo</label><input id="upmod" maxlength="120">
+<label for="upser">N.º de serie</label><input id="upser" maxlength="80">
+<label for="uptip">Tipo de servicio</label><input id="uptip" maxlength="100" placeholder="Ej: Mantención preventiva">
+<label for="uppro">Resumen / problema</label><input id="uppro" maxlength="300">
+<div style="height:10px"></div>
+<button class="p" type="submit" id="upbtn" style="width:100%">Subir informe</button>
+<div id="upmsg" class="hint" role="status"></div>
+</form></div>
 <div class="card" style="margin-top:16px"><h2>Mis informes enviados</h2>
 <label for="sq" class="vh">Buscar</label><input id="sq" type="search" placeholder="Buscar por cliente, equipo o serie…">
 <div id="sentmsg" class="hint"></div><div id="sentlist"></div></div>
@@ -568,6 +583,34 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
     Array.prototype.forEach.call(bs,function(x){var on=x===b;x.className=on?'on':'';x.setAttribute('aria-selected',on)});
     var g=function(i){return document.getElementById(i)},t=T[b.getAttribute('data-m')];g('lh').textContent=t[0];g('lp').textContent=t[1];g('lrut').focus();
   }});
+})();
+
+// ---- Subir un informe en PDF ya elaborado
+(function(){
+  var g=function(i){return document.getElementById(i)},f=g('upf');if(!f)return;
+  g('upfecha').value=new Date().toISOString().slice(0,10);
+  f.onsubmit=function(e){
+    e.preventDefault();var m=g('upmsg'),b=g('upbtn'),file=g('upfile').files[0];
+    if(!file){m.textContent='Elija un archivo PDF.';return}
+    if(file.size>25*1024*1024){m.textContent='El PDF pesa más de 25 MB.';return}
+    if(!navigator.onLine){m.textContent='Sin conexión: súbalo cuando tenga internet.';return}
+    b.disabled=true;m.textContent='Subiendo…';
+    var rd=new FileReader();
+    rd.onerror=function(){b.disabled=false;m.textContent='No se pudo leer el archivo.'};
+    rd.onload=function(){
+      var id='up-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+      var v=function(i){return g(i).value.trim()};
+      fetch('/api/reports',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,name:file.name.replace(/\.pdf$/i,''),fecha:v('upfecha'),cliente:v('upcli'),equipo:v('upequ'),modelo:v('upmod'),serie:v('upser'),tipo:v('uptip'),problema:v('uppro'),pdf:String(rd.result).split(',')[1]})})
+      .then(function(r){return r.json().catch(function(){return{}}).then(function(j){
+        if(r.status===401){m.textContent='La sesión venció. Vuelva a ingresar.';return}
+        if(!r.ok||!j.ok){m.textContent=j.error||('Error '+r.status);return}
+        m.textContent='Informe subido correctamente.';f.reset();g('upfecha').value=new Date().toISOString().slice(0,10);
+        var sq=g('sq');if(sq)sq.dispatchEvent(new Event('input'));
+      })}).catch(function(){m.textContent='No se pudo subir. Revise la conexión.'})
+      .then(function(){b.disabled=false});
+    };
+    rd.readAsDataURL(file);
+  };
 })();
 </script>
 </body>

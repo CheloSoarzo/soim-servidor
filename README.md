@@ -75,6 +75,10 @@ Disponible en `https://SU-DOMINIO/gastos` (hay un enlace *Gastos* en la app y en
 
 ---
 
+## Subir informes anteriores
+
+En la app, la tarjeta "Subir informe ya elaborado" permite cargar un PDF existente con fecha, cliente y datos del equipo. Queda guardado como cualquier otro informe (admin, historial de equipo y portal del cliente).
+
 ## Portal de clientes
 
 Cada cliente puede tener su propia cuenta para ver sus informes anteriores en `https://SU-DOMINIO/portal.html`.
