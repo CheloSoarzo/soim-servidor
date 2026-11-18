@@ -4,57 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b2a63">
 <title>Gastos - SOIM Chile</title>
-<style>
-:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mu:#5d6672;--bd:#d5d9df;--ac:#1d5fd6;--act:#fff;--er:#c0392b;--ok:#1a7f4b;--wa:#b26a00}
-@media (prefers-color-scheme:dark){:root{--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c;--wa:#f0b254}}
-*,*:before,*:after{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:1000px;margin:0 auto;padding:14px}
-h1{font-size:1.25rem;margin:0}
-h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.who{font-size:.85rem;color:var(--mu)}
-a{color:var(--ac)}
-label{display:block;font-size:.85rem;color:var(--mu);margin:10px 0 4px}
-input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px}
-textarea{min-height:84px;resize:vertical}
-button{font:inherit;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:10px 14px;cursor:pointer}
-button.p{background:var(--ac);color:var(--act);border-color:var(--ac);font-weight:600}
-button.s{padding:5px 9px;font-size:.85rem}
-button.d{color:var(--er);border-color:var(--er)}
-button[disabled]{opacity:.5;cursor:default}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
-.msg{min-height:1.3em;font-size:.9rem;margin:8px 0}
-.err{color:var(--er)}.good{color:var(--ok)}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
-.tabs button.on{background:var(--ac);color:var(--act);border-color:var(--ac)}
-.scroll{overflow-x:auto;border:1px solid var(--bd);border-radius:10px}
-table{border-collapse:collapse;width:100%;font-size:.9rem}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
-th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu);background:var(--bg);white-space:nowrap}
-tr:last-child td{border-bottom:0}
-td.n{white-space:nowrap;text-align:right}
-td.wrap{min-width:200px}
-.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;border:1px solid var(--bd);color:var(--mu);white-space:nowrap}
-.tag.aprobado{color:var(--ok);border-color:var(--ok)}
-.tag.rechazado{color:var(--er);border-color:var(--er)}
-.tag.pendiente{color:var(--wa);border-color:var(--wa)}
-.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.sum table td,.sum table th{padding:5px 8px}
-.ov{position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px}
-.ov .card{width:100%;max-width:420px;margin-top:8vh}
-.ov p{color:var(--mu);font-size:.9rem;margin:6px 0 10px}
-.ov button.p{width:100%;padding:12px;margin-top:6px}
-#prev{max-width:100%;max-height:220px;border-radius:8px;margin-top:8px;display:block}
-.hint{font-size:.8rem;color:var(--mu);margin-top:4px}
-.mot{font-size:.8rem;color:var(--er);margin-top:3px}
-</style>
+<link rel="stylesheet" href="theme.css">
 </head>
-<body>
+<body class="wide">
 
 <div id="login" class="ov" hidden>
 <form id="lf" class="card" autocomplete="on">
@@ -71,7 +25,7 @@ td.wrap{min-width:200px}
 <main id="app" hidden>
 <div class="top">
 <h1>Gastos</h1>
-<div class="who"><span id="who"></span> · <a href="index.html">Informes</a> <span id="adl" hidden>· <a href="admin.html">Panel</a></span> · <button class="s" id="logout" type="button">Salir</button></div>
+<div class="who"><span id="who"></span><a href="index.html">Informes</a><span id="adl" hidden><a href="admin.html">Panel</a></span><button class="s" id="logout" type="button">Salir</button></div>
 </div>
 
 <div class="tabs"><button id="tb-new" class="on" type="button">Nuevo gasto</button><button id="tb-list" type="button">Gastos registrados</button></div>

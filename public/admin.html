@@ -4,51 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b2a63">
 <title>Panel de administración</title>
-<style>
-:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mu:#5d6672;--bd:#d5d9df;--ac:#1d5fd6;--act:#fff;--er:#c0392b;--ok:#1a7f4b}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c}}
-:root[data-theme="dark"]{--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c}
-*,*:before,*:after{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:16px}
-h1{font-size:1.3rem;margin:0}
-h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.top .who{font-size:.85rem;color:var(--mu)}
-a{color:var(--ac)}
-label{display:block;font-size:.85rem;color:var(--mu);margin:0 0 4px}
-input,select{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:9px}
-button{font:inherit;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:9px 14px;cursor:pointer}
-button.p{background:var(--ac);color:var(--act);border-color:var(--ac);font-weight:600}
-button.s{padding:5px 9px;font-size:.85rem}
-button[disabled]{opacity:.5;cursor:default}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
-.tabs button.on{background:var(--ac);color:var(--act);border-color:var(--ac)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
-.msg{min-height:1.3em;font-size:.9rem;margin:8px 0}
-.err{color:var(--er)}.good{color:var(--ok)}
-.scroll{overflow-x:auto;border:1px solid var(--bd);border-radius:10px}
-table{border-collapse:collapse;width:100%;font-size:.9rem}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
-th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu);background:var(--bg)}
-tr:last-child td{border-bottom:0}
-td.wrap{white-space:normal;min-width:160px}
-.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;border:1px solid var(--bd);color:var(--mu)}
-.tag.admin{color:var(--ac);border-color:var(--ac)}
-.tag.off{color:var(--er);border-color:var(--er)}
-.ov{position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px}
-.ov .card{width:100%;max-width:420px;margin-top:8vh}
-.ov label{margin-top:10px}.ov label:first-of-type{margin-top:0}
-.ov p{color:var(--mu);font-size:.9rem;margin:6px 0 10px}
-.ov button.p{width:100%;padding:12px}
-.pwrow{display:grid;grid-template-columns:1fr auto;gap:8px}
-</style>
+<link rel="stylesheet" href="theme.css">
 </head>
-<body>
+<body class="wide">
 
 <div id="login" class="ov" hidden>
 <form id="lf" class="card" autocomplete="on">
@@ -73,7 +33,7 @@ td.wrap{white-space:normal;min-width:160px}
 <main id="app" hidden>
 <div class="top">
 <h1>Panel de administración</h1>
-<div class="who"><span id="who"></span> · <a href="index.html">Ir a la app</a> · <a href="gastos.html">Gastos</a> · <button class="s" id="logout" type="button">Salir</button></div>
+<div class="who"><span id="who"></span><a href="index.html">Ir a la app</a><a href="gastos.html">Gastos</a><button class="s" id="logout" type="button">Salir</button></div>
 </div>
 <div id="denied" class="card err" hidden>Esta página es solo para administradores.</div>
 
