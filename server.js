@@ -217,10 +217,10 @@ function parseCookies(req) {
 }
 function setSession(res, u) {
   const token = sec.signToken({ uid: u.id, v: u.token_ver, exp: Date.now() + SESSION_DAYS * 864e5 }, SECRET);
-  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86400}${PROD ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}${PROD ? '; Secure' : ''}`);
 }
 function clearSession(res) {
-  res.setHeader('Set-Cookie', `sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${PROD ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${PROD ? '; Secure' : ''}`);
 }
 const pub = u => ({ id: u.id, rut: u.rut, name: u.name, role: u.role, cliente: u.cliente || null, mustChange: !!u.must_change });
 

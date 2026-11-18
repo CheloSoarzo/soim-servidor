@@ -110,7 +110,7 @@ Los técnicos ya escriben marca/modelo y número de serie en cada informe; el si
 
 Ya incluido:
 - Contraseñas guardadas con scrypt y sal; nunca en texto plano.
-- Sesión en una cookie `HttpOnly` y `SameSite=Strict`, solo por HTTPS en producción. Dura 30 días.
+- Sesión en una cookie `HttpOnly` y `SameSite=Lax` (así los enlaces "Ver PDF" funcionan al abrirse desde la app instalada; los cambios siguen protegidos por la verificación de origen), solo por HTTPS en producción. Dura 30 días.
 - Bloqueo temporal tras varios intentos fallidos (por RUT y por IP).
 - Al cambiar una clave o desactivar a un usuario, sus sesiones abiertas dejan de valer de inmediato.
 - Los técnicos ven todos los informes; los clientes solo los suyos; el panel y el ZIP exigen rol de administrador.

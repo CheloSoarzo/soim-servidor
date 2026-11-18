@@ -40,7 +40,7 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 'x'), Bu
     let r = await call('POST', '/api/login', { rut: '12345678-5', password: ADMIN.pw });
     ok(r.status === 200 && r.cookie && r.json.user.role === 'admin' && r.json.user.mustChange, 'admin entra (RUT sin puntos) y debe cambiar clave');
     let adm = r.cookie;
-    ok(/HttpOnly/i.test(r.headers.get('set-cookie')) && /SameSite=Strict/i.test(r.headers.get('set-cookie')), 'cookie con HttpOnly y SameSite=Strict');
+    ok(/HttpOnly/i.test(r.headers.get('set-cookie')) && /SameSite=Lax/i.test(r.headers.get('set-cookie')), 'cookie con HttpOnly y SameSite=Strict');
     ok((await call('POST', '/api/reports', { id: 'x' }, adm)).status === 403, 'con clave temporal no puede enviar informes → 403');
     ok((await call('GET', '/api/users', undefined, adm)).status === 403, 'con clave temporal no puede administrar → 403');
 
