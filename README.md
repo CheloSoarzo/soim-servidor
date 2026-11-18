@@ -81,6 +81,10 @@ Al subir un PDF ya elaborado, el servidor lee su texto y rellena fecha, cliente,
 
 Opcional: si algún día se quiere cubrir también los escaneados o formatos raros, se puede agregar `ANTHROPIC_API_KEY=...` en `/opt/soim/.env` y se usará solo cuando la lectura local no reconozca el documento (tiene costo y envía el PDF a Anthropic). Sin esa clave no se cobra nada.
 
+## Boletas y facturas: lectura automática
+
+En *Gastos → Nuevo gasto*, al elegir la foto (o el PDF) de la boleta o factura, el sistema lee el comprobante y rellena fecha, monto, tipo y número de documento, proveedor y una categoría sugerida; el técnico revisa antes de enviar. Las fotos se leen con OCR local (Tesseract, instalado en la imagen de Docker; sin costo ni envío a terceros) y los PDF con texto se leen directamente. Funciona mejor con fotos nítidas y bien iluminadas. Si la lectura falla, se completa a mano como siempre. Tras actualizar el servidor hay que reconstruir la imagen (`docker compose up -d --build`) para que se instale Tesseract.
+
 ## Subir informes anteriores
 
 En la app, la tarjeta "Subir informe ya elaborado" permite cargar un PDF existente con fecha, cliente y datos del equipo. Queda guardado como cualquier otro informe (admin, historial de equipo y portal del cliente).

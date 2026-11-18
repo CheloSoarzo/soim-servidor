@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const sec = require('./lib/security');
 const { extractFields } = require('./lib/pdffields');
+const { scanReceipt } = require('./lib/receipt');
 const { writeZip } = require('./lib/zip');
 
 // ------------------------------------------------------------------ configuración
@@ -552,6 +553,30 @@ function ownExpense(ctx) {
   if (!x || (u.role !== 'admin' && x.user_id !== u.id)) throw new HttpError(404, 'No encontrado.');
   return x;
 }
+route('POST', '/api/expenses/scan', async ctx => {
+  const u = needStaff(ctx);
+  if (!hit('scan:' + u.id, 60, 60 * 60e3)) throw new HttpError(429, 'Demasiadas lecturas seguidas. Intente más tarde.');
+  const b = await readJson(ctx.req, 10 * 1024 * 1024);
+  if (typeof b.file !== 'string' || !b.file) throw new HttpError(400, 'Falta el archivo.');
+  const buf = Buffer.from(b.file, 'base64'), kind = receiptKind(buf);
+  if (!kind) throw new HttpError(400, 'Debe ser una foto (JPG o PNG) o un PDF.');
+  if (buf.length > MAX_RECEIPT) throw new HttpError(413, 'El archivo es demasiado grande (máximo 6 MB).');
+  let r;
+  try { r = await scanReceipt(buf, kind); }
+  catch (e) {
+    if (e && e.noOcr) throw new HttpError(503, 'La lectura de fotos no está instalada en el servidor. Complete los datos a mano.');
+    throw new HttpError(502, 'No se pudo leer el comprobante. Complete los datos a mano.');
+  }
+  const d = r.data, out = {};
+  if (DATE_RE.test(d.fecha) && d.fecha <= todayIso()) out.fecha = d.fecha;
+  if (+d.monto > 0) out.monto = d.monto;
+  if (['boleta', 'factura'].includes(d.doc_tipo)) out.doc_tipo = d.doc_tipo;
+  if (d.doc_numero) out.doc_numero = clean(d.doc_numero, 40);
+  if (d.proveedor) out.proveedor = clean(d.proveedor, 120);
+  if (CATS.includes(d.categoria)) out.categoria = d.categoria;
+  if (!Object.keys(out).length) throw new HttpError(422, r.chars ? 'No se reconocieron datos en el comprobante. Complételos a mano.' : 'No se pudo leer texto en el comprobante (¿foto borrosa o PDF escaneado?). Complete los datos a mano.');
+  send(ctx.res, 200, { ok: true, data: out });
+});
 route('GET', '/api/expenses/:id/receipt', ctx => {
   const x = ownExpense(ctx);
   if (!x.receipt) throw new HttpError(404, 'Este gasto no tiene comprobante.');

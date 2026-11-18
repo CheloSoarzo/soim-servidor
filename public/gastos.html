@@ -50,8 +50,9 @@
 <label for="just">Justificación <span class="hint">(obligatoria: ¿para qué fue este gasto?)</span></label>
 <textarea id="just" maxlength="1000" placeholder="Ej.: Combustible para viaje a Osorno por reparación del tomógrafo del Hospital Base."></textarea>
 <div id="recw">
-<label for="rec">Foto del comprobante</label>
-<input id="rec" type="file" accept="image/*">
+<label for="rec">Foto o PDF del comprobante</label>
+<input id="rec" type="file" accept="image/*,application/pdf,.pdf">
+<div id="scanmsg" class="hint" role="status"></div>
 <div class="hint">Saque la foto con buena luz y que se lea el total. Se comprime sola antes de enviarse.</div>
 <img id="prev" alt="Vista previa del comprobante" hidden>
 <div id="curr" class="hint" hidden>Ya tiene un comprobante guardado. Si no sube otro, se conserva.</div>
@@ -194,10 +195,33 @@ function shrink(file){
     fr.readAsDataURL(file);
   });
 }
+function rd64(file){return new Promise(function(res,rej){var fr=new FileReader();fr.onerror=function(){rej(new Error('No se pudo leer el archivo.'))};fr.onload=function(){res(String(fr.result).split(',')[1])};fr.readAsDataURL(file)})}
+function autofill(d){
+  var n=0;function put(id,v,force){var e=$(id);if(v&&e&&(force||!String(e.value).trim())){e.value=v;n++}}
+  put('fecha',d.fecha,1);put('monto',d.monto,0);put('docn',d.doc_numero,0);put('prov',d.proveedor,0);put('cat',d.categoria,0);
+  if(d.doc_tipo&&$('doc').value!=='sin_respaldo')$('doc').value=d.doc_tipo;
+  return n;
+}
+async function scanRec(b64){
+  var m=$('scanmsg');if(!navigator.onLine){m.textContent='';return}
+  m.textContent='Leyendo el comprobante…';
+  try{
+    var r=await fetch('/api/expenses/scan',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:b64})});
+    var j={};try{j=await r.json()}catch(_){}
+    if(!r.ok||!j.ok){m.textContent=j.error||'No se pudo leer el comprobante. Complete los datos a mano.';return}
+    var n=autofill(j.data);m.textContent=n?'Datos leídos del comprobante. Revíselos antes de enviar.':'Los datos ya estaban completos.';
+  }catch(e){m.textContent='No se pudo leer el comprobante. Complete los datos a mano.'}
+}
 $('rec').onchange=async function(){
-  var f=this.files[0];photo=null;$('prev').hidden=true;if(!f)return;
-  try{photo=await shrink(f);$('prev').src=photo.url;$('prev').hidden=false;$('emsg').textContent=''}
-  catch(e){$('emsg').className='msg err';$('emsg').textContent=e.message;this.value=''}
+  var f=this.files[0];photo=null;$('prev').hidden=true;$('scanmsg').textContent='';if(!f)return;
+  try{
+    if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){
+      if(f.size>6*1024*1024)throw new Error('El PDF pesa más de 6 MB.');
+      var b=await rd64(f);photo={url:null,b64:b};$('emsg').textContent='';$('scanmsg').textContent='PDF seleccionado.';await scanRec(b);
+    }else{
+      photo=await shrink(f);$('prev').src=photo.url;$('prev').hidden=false;$('emsg').textContent='';await scanRec(photo.b64);
+    }
+  }catch(e){$('emsg').className='msg err';$('emsg').textContent=e.message;this.value=''}
 };
 $('ef').onsubmit=async function(ev){
   ev.preventDefault();var m=$('emsg');m.className='msg';
