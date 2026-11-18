@@ -1,0 +1,9 @@
+{
+  "name": "soim-informes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Informes de servicio SOIM Chile: login por RUT, almacenamiento central de PDF y panel de administración (sin dependencias externas)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node tools/selftest.js" },
+  "engines": { "node": ">=22.13" }
+}

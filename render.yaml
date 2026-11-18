@@ -1,0 +1,29 @@
+# Blueprint de Render: crea el servicio con su disco para guardar los informes.
+services:
+  - type: web
+    name: soim-informes
+    runtime: node
+    plan: starter            # los discos persistentes requieren un plan de pago
+    buildCommand: "echo sin dependencias que instalar"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_RUT
+        sync: false          # Render se lo pedirá al crear el servicio
+      - key: ADMIN_PASSWORD
+        sync: false          # contraseña temporal del administrador
+      - key: ADMIN_NAME
+        value: Administrador
+    disk:
+      name: datos
+      mountPath: /var/data
+      sizeGB: 5

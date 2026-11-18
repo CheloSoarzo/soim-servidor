@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Gastos - SOIM Chile</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mu:#5d6672;--bd:#d5d9df;--ac:#1d5fd6;--act:#fff;--er:#c0392b;--ok:#1a7f4b;--wa:#b26a00}
+@media (prefers-color-scheme:dark){:root{--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c;--wa:#f0b254}}
+*,*:before,*:after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:14px}
+h1{font-size:1.25rem;margin:0}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.who{font-size:.85rem;color:var(--mu)}
+a{color:var(--ac)}
+label{display:block;font-size:.85rem;color:var(--mu);margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px}
+textarea{min-height:84px;resize:vertical}
+button{font:inherit;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:10px 14px;cursor:pointer}
+button.p{background:var(--ac);color:var(--act);border-color:var(--ac);font-weight:600}
+button.s{padding:5px 9px;font-size:.85rem}
+button.d{color:var(--er);border-color:var(--er)}
+button[disabled]{opacity:.5;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.msg{min-height:1.3em;font-size:.9rem;margin:8px 0}
+.err{color:var(--er)}.good{color:var(--ok)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button.on{background:var(--ac);color:var(--act);border-color:var(--ac)}
+.scroll{overflow-x:auto;border:1px solid var(--bd);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu);background:var(--bg);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.n{white-space:nowrap;text-align:right}
+td.wrap{min-width:200px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;border:1px solid var(--bd);color:var(--mu);white-space:nowrap}
+.tag.aprobado{color:var(--ok);border-color:var(--ok)}
+.tag.rechazado{color:var(--er);border-color:var(--er)}
+.tag.pendiente{color:var(--wa);border-color:var(--wa)}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.sum table td,.sum table th{padding:5px 8px}
+.ov{position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px}
+.ov .card{width:100%;max-width:420px;margin-top:8vh}
+.ov p{color:var(--mu);font-size:.9rem;margin:6px 0 10px}
+.ov button.p{width:100%;padding:12px;margin-top:6px}
+#prev{max-width:100%;max-height:220px;border-radius:8px;margin-top:8px;display:block}
+.hint{font-size:.8rem;color:var(--mu);margin-top:4px}
+.mot{font-size:.8rem;color:var(--er);margin-top:3px}
+</style>
+</head>
+<body>
+
+<div id="login" class="ov" hidden>
+<form id="lf" class="card" autocomplete="on">
+<h1>Gastos · Iniciar sesión</h1>
+<p>Ingrese con su RUT y contraseña.</p>
+<label for="lrut">RUT</label><input id="lrut" autocomplete="username" autocapitalize="off" placeholder="12.345.678-9" required>
+<label for="lpw">Contraseña</label><input id="lpw" type="password" autocomplete="current-password" required>
+<div id="lmsg" class="msg err" role="alert"></div>
+<button class="p" type="submit">Entrar</button>
+</form>
+<p id="chg" class="card" hidden>Debe cambiar su contraseña temporal. <a href="index.html">Hágalo aquí</a>.</p>
+</div>
+
+<main id="app" hidden>
+<div class="top">
+<h1>Gastos</h1>
+<div class="who"><span id="who"></span> · <a href="index.html">Informes</a> <span id="adl" hidden>· <a href="admin.html">Panel</a></span> · <button class="s" id="logout" type="button">Salir</button></div>
+</div>
+
+<div class="tabs"><button id="tb-new" class="on" type="button">Nuevo gasto</button><button id="tb-list" type="button">Gastos registrados</button></div>
+
+<section id="sec-new">
+<form id="ef" class="card" autocomplete="off" novalidate>
+<h2 id="ftitle">Registrar gasto</h2>
+<div class="grid">
+<div><label for="fecha">Fecha del gasto</label><input id="fecha" type="date" required></div>
+<div><label for="monto">Monto (pesos CLP)</label><input id="monto" type="number" inputmode="numeric" min="1" step="1" required></div>
+<div><label for="cat">Categoría</label><select id="cat" required>
+<option value="">Seleccione…</option><option value="combustible">Combustible</option><option value="alimentacion">Alimentación</option><option value="alojamiento">Alojamiento</option><option value="transporte">Transporte / pasajes</option><option value="peajes">Peajes y estacionamiento</option><option value="repuestos">Repuestos e insumos</option><option value="herramientas">Herramientas</option><option value="otros">Otros</option></select></div>
+<div><label for="doc">Documento</label><select id="doc" required><option value="boleta">Boleta</option><option value="factura">Factura</option><option value="sin_respaldo">Sin respaldo</option></select></div>
+<div><label for="docn">N° de documento (opcional)</label><input id="docn" maxlength="40"></div>
+<div><label for="prov">Proveedor / comercio (opcional)</label><input id="prov" maxlength="120"></div>
+<div><label for="cli">Cliente asociado (opcional)</label><select id="cli"><option value="">Ninguno</option><option>Centro de Salud San Rafael</option><option>Centro Imagenes INSI</option><option>Centro Medico Colina Salud</option><option>Centro Medico Isapre Fundacion</option><option>Centro Medico Rancagua</option><option>Centro Medico Santa Catalina Buin</option><option>Centro Medico Santa Catalina Paine</option><option>Centro Medico Veterinario Rucalaf</option><option>Centro Scanner Peñaflor</option><option>Clinica Alemana Osorno</option><option>Clinica Altacura</option><option>Clinica Miraflores</option><option>Clinica Veterinaria Hannover</option><option>Clinica Veterinaria Zoomundo</option><option>Diagnocal</option><option>Hospital Base San Jose Osorno</option><option>Hospital de Nueva Imperial</option><option>Hospital Veterinario Manuel Bulnes</option><option>Hospital Veterinario Santiago</option><option>IMABOX</option><option>IMAVAL</option><option>INMEVET</option><option>San Rafael Centro de Salud</option><option>Villa Alemana Medica</option></select></div>
+<div><label for="rep">Informe de servicio asociado (opcional)</label><select id="rep"><option value="">Ninguno</option></select></div>
+</div>
+<label for="just">Justificación <span class="hint">(obligatoria: ¿para qué fue este gasto?)</span></label>
+<textarea id="just" maxlength="1000" placeholder="Ej.: Combustible para viaje a Osorno por reparación del tomógrafo del Hospital Base."></textarea>
+<div id="recw">
+<label for="rec">Foto del comprobante</label>
+<input id="rec" type="file" accept="image/*">
+<div class="hint">Saque la foto con buena luz y que se lea el total. Se comprime sola antes de enviarse.</div>
+<img id="prev" alt="Vista previa del comprobante" hidden>
+<div id="curr" class="hint" hidden>Ya tiene un comprobante guardado. Si no sube otro, se conserva.</div>
+</div>
+<div id="emsg" class="msg" role="status"></div>
+<div class="bar"><button class="p" id="esave" type="submit">Enviar gasto</button><button id="ecancel" type="button" hidden>Cancelar edición</button></div>
+</form>
+</section>
+
+<section id="sec-list" hidden>
+<div class="card">
+<h2>Filtros</h2>
+<div class="grid">
+<div><label for="fd">Desde</label><input id="fd" type="date"></div>
+<div><label for="fh">Hasta</label><input id="fh" type="date"></div>
+<div><label for="fs">Estado</label><select id="fs"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="aprobado">Aprobado</option><option value="rechazado">Rechazado</option></select></div>
+<div><label for="fcat">Categoría</label><select id="fcat"><option value="">Todas</option></select></div>
+<div id="fuw" hidden><label for="fu">Técnico</label><select id="fu"><option value="">Todos</option></select></div>
+<div><label for="fcl">Cliente</label><input id="fcl" placeholder="contiene…"></div>
+</div>
+<div class="bar"><button class="p" id="fgo" type="button">Buscar</button><button id="fclr" type="button">Limpiar</button><button id="fcsv" type="button" hidden>Descargar Excel (CSV)</button></div>
+</div>
+<div class="card"><h2>Totales <span class="hint" style="text-transform:none">(sin contar rechazados)</span></h2><div id="sum" class="sum"></div></div>
+<div class="card">
+<div id="lcount" class="msg"></div>
+<div class="scroll"><table>
+<thead><tr><th>Fecha</th><th id="thtec">Técnico</th><th>Categoría</th><th>Detalle</th><th>Monto</th><th>Estado</th><th></th></tr></thead>
+<tbody id="lbody"></tbody></table></div>
+</div>
+</section>
+</main>
+
+<div id="rj" class="ov" hidden><div class="card"><h1>Rechazar gasto</h1><p id="rjinfo"></p><label for="rjm">Motivo (obligatorio)</label><textarea id="rjm" maxlength="500"></textarea><div id="rjerr" class="msg err"></div><div class="bar"><button class="p" id="rjok" type="button" style="width:auto">Rechazar</button><button id="rjno" type="button">Cancelar</button></div></div></div>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var ME=null,ROWS={},editing=null,photo=null,LAST='';
+var CATN={combustible:'Combustible',alimentacion:'Alimentación',alojamiento:'Alojamiento',transporte:'Transporte',peajes:'Peajes y estac.',repuestos:'Repuestos e insumos',herramientas:'Herramientas',otros:'Otros'};
+var DOCN={boleta:'Boleta',factura:'Factura',sin_respaldo:'Sin respaldo'};
+var ESTN={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
+function money(n){return '$'+Math.round(n||0).toLocaleString('es-CL')}
+function el(t,x,c){var e=document.createElement(t);if(x!==undefined&&x!==null)e.textContent=x;if(c)e.className=c;return e}
+function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
+function newId(){var b=new Uint8Array(6);crypto.getRandomValues(b);return 'g'+Date.now().toString(36)+Array.prototype.map.call(b,function(x){return ('0'+x.toString(16)).slice(-2)}).join('')}
+async function api(method,url,body){
+  var o={method:method,credentials:'same-origin',headers:{}};
+  if(body!==undefined){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
+  var r=await fetch(url,o),j={};try{j=await r.json()}catch(e){}
+  if(r.status===401&&url!=='/api/me'&&url!=='/api/login'){ME=null;showLogin('Su sesión venció. Ingrese de nuevo.')}
+  if(!r.ok){var e=new Error(j.error||('Error '+r.status));e.status=r.status;throw e}
+  return j;
+}
+// ---------- sesión
+function showLogin(m){$('app').hidden=true;$('login').hidden=false;$('lf').hidden=false;$('chg').hidden=true;$('lmsg').textContent=m||'';$('lpw').value=''}
+function enter(){
+  $('login').hidden=true;$('app').hidden=false;$('who').textContent=ME.name;
+  var adm=ME.role==='admin';$('adl').hidden=!adm;$('fuw').hidden=!adm;$('fcsv').hidden=!adm;$('thtec').hidden=false;
+  if(adm)loadTecs();
+  resetForm();loadReports();
+}
+async function init(){
+  try{var j=await api('GET','/api/me');ME=j.user;
+    if(ME.mustChange){$('login').hidden=false;$('lf').hidden=true;$('chg').hidden=false}else enter()}
+  catch(e){showLogin(e.status===401?'':'Sin conexión con el servidor.')}
+}
+$('lf').onsubmit=async function(ev){
+  ev.preventDefault();$('lmsg').textContent='Ingresando…';
+  try{var j=await api('POST','/api/login',{rut:$('lrut').value,password:$('lpw').value});ME=j.user;
+    if(ME.mustChange){$('lf').hidden=true;$('chg').hidden=false}else enter()}
+  catch(e){$('lmsg').textContent=e.message;$('lpw').value=''}
+};
+$('logout').onclick=async function(){try{await api('POST','/api/logout')}catch(e){}ME=null;showLogin()};
+function tab(w){$('sec-new').hidden=w!=='new';$('sec-list').hidden=w!=='list';$('tb-new').className=w==='new'?'on':'';$('tb-list').className=w==='list'?'on':'';if(w==='list')search()}
+$('tb-new').onclick=function(){tab('new')};$('tb-list').onclick=function(){tab('list')};
+
+// ---------- formulario
+async function loadReports(){
+  try{var j=await api('GET','/api/reports?limit=60'),s=$('rep'),keep=s.value;
+    while(s.options.length>1)s.remove(1);
+    j.items.forEach(function(r){var o=el('option',r.fecha+' · '+r.cliente+(r.equipo?' · '+r.equipo:''));o.value=r.id;s.appendChild(o)});
+    if(keep)s.value=keep}catch(e){}
+}
+function resetForm(){
+  editing=null;photo=null;$('ef').reset();$('fecha').value=today();$('fecha').max=today();
+  $('prev').hidden=true;$('curr').hidden=true;$('ftitle').textContent='Registrar gasto';$('esave').textContent='Enviar gasto';$('ecancel').hidden=true;
+  $('emsg').textContent='';$('emsg').className='msg';syncDoc();
+}
+function syncDoc(){$('recw').hidden=$('doc').value==='sin_respaldo'}
+$('doc').onchange=syncDoc;
+// reduce la foto: máx. 1600 px, JPEG
+function shrink(file){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onerror=function(){rej(new Error('No se pudo leer la foto.'))};
+    fr.onload=function(){var im=new Image();
+      im.onerror=function(){rej(new Error('El archivo no es una imagen válida.'))};
+      im.onload=function(){var M=1600,w=im.width,h=im.height,k=Math.min(1,M/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+        var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+        var u=c.toDataURL('image/jpeg',.78);res({url:u,b64:u.split(',')[1]})};
+      im.src=fr.result};
+    fr.readAsDataURL(file);
+  });
+}
+$('rec').onchange=async function(){
+  var f=this.files[0];photo=null;$('prev').hidden=true;if(!f)return;
+  try{photo=await shrink(f);$('prev').src=photo.url;$('prev').hidden=false;$('emsg').textContent=''}
+  catch(e){$('emsg').className='msg err';$('emsg').textContent=e.message;this.value=''}
+};
+$('ef').onsubmit=async function(ev){
+  ev.preventDefault();var m=$('emsg');m.className='msg';
+  var b={id:editing||newId(),fecha:$('fecha').value,monto:$('monto').value,categoria:$('cat').value,doc_tipo:$('doc').value,doc_numero:$('docn').value,proveedor:$('prov').value,cliente:$('cli').value,report_id:$('rep').value,justificacion:$('just').value.trim()};
+  if(!b.fecha||!b.monto||!b.categoria){m.className='msg err';m.textContent='Complete fecha, monto y categoría.';return}
+  if(b.justificacion.length<10){m.className='msg err';m.textContent='Escriba la justificación (para qué fue el gasto).';return}
+  if(b.doc_tipo!=='sin_respaldo'&&!photo&&!(editing&&ROWS[editing]&&ROWS[editing].tiene_comprobante)){m.className='msg err';m.textContent='Adjunte la foto del comprobante o elija "Sin respaldo".';return}
+  if(photo&&b.doc_tipo!=='sin_respaldo')b.comprobante=photo.b64;
+  $('esave').disabled=true;m.textContent='Enviando…';
+  try{
+    if(editing)await api('PUT','/api/expenses/'+encodeURIComponent(editing),b);else await api('POST','/api/expenses',b);
+    var was=!!editing;resetForm();m.className='msg good';m.textContent=was?'Gasto corregido y enviado de nuevo a revisión.':'Gasto enviado. Quedó pendiente de aprobación.';
+  }catch(e){m.className='msg err';m.textContent=e.status===undefined?'Sin conexión. Los gastos requieren internet: intente de nuevo cuando tenga señal (sus datos siguen en el formulario).':e.message}
+  $('esave').disabled=false;
+};
+$('ecancel').onclick=function(){resetForm()};
+
+// ---------- listado
+async function loadTecs(){try{var j=await api('GET','/api/users'),s=$('fu');while(s.options.length>1)s.remove(1);j.items.forEach(function(u){var o=el('option',u.name);o.value=u.id;s.appendChild(o)})}catch(e){}}
+Object.keys(CATN).forEach(function(k){var o=el('option',CATN[k]);o.value=k;$('fcat').appendChild(o)});
+function qs(){var p=new URLSearchParams();[['desde','fd'],['hasta','fh'],['estado','fs'],['categoria','fcat'],['user','fu'],['cliente','fcl']].forEach(function(x){var v=$(x[1]).value.trim();if(v)p.set(x[0],v)});return p.toString()}
+function sumTable(title,rows,fmt){
+  var d=el('div');d.appendChild(el('h2',title));var t=el('table');
+  if(!rows.length){d.appendChild(el('div','—','hint'));return d}
+  rows.forEach(function(r){var tr=el('tr');tr.appendChild(el('td',fmt?fmt(r.k):r.k));tr.appendChild(el('td',money(r.total),'n'));t.appendChild(tr)});
+  var tot=rows.reduce(function(a,r){return a+r.total},0),tr=el('tr');tr.appendChild(el('th','Total'));tr.appendChild(el('th',money(tot),'n'));t.appendChild(tr);
+  d.appendChild(t);return d;
+}
+async function search(){
+  LAST=qs();$('lcount').textContent='Buscando…';$('lcount').className='msg';
+  try{
+    var r=await Promise.all([api('GET','/api/expenses?'+LAST),api('GET','/api/expenses/summary?'+LAST)]),j=r[0],s=r[1];
+    ROWS={};var b=$('lbody');b.textContent='';var adm=ME.role==='admin';
+    j.items.forEach(function(x){
+      ROWS[x.id]=x;var tr=el('tr');
+      tr.appendChild(el('td',x.fecha));tr.appendChild(el('td',x.tecnico));tr.appendChild(el('td',CATN[x.categoria]||x.categoria));
+      var d=el('td',null,'wrap');
+      d.appendChild(el('div',(DOCN[x.doc_tipo]||x.doc_tipo)+(x.doc_numero?' N° '+x.doc_numero:'')+(x.proveedor?' · '+x.proveedor:'')+(x.cliente?' · '+x.cliente:'')));
+      d.appendChild(el('div',x.justificacion,'hint'));
+      if(x.estado==='rechazado'&&x.motivo)d.appendChild(el('div','Rechazado: '+x.motivo,'mot'));
+      if(x.estado!=='pendiente'&&x.revisado_por)d.appendChild(el('div','Revisó: '+x.revisado_por,'hint'));
+      tr.appendChild(d);tr.appendChild(el('td',money(x.monto),'n'));
+      var e=el('td');e.appendChild(el('span',ESTN[x.estado],'tag '+x.estado));tr.appendChild(e);
+      var a=el('td');a.style.whiteSpace='nowrap';
+      function btn(t,fn,cls){var k=el('button',t,'s'+(cls?' '+cls:''));k.type='button';k.style.margin='0 4px 4px 0';k.onclick=fn;a.appendChild(k)}
+      if(x.tiene_comprobante)btn('Comprobante',function(){window.open('/api/expenses/'+encodeURIComponent(x.id)+'/receipt','_blank','noopener')});
+      if(adm){
+        if(x.estado!=='aprobado')btn('Aprobar',function(){review(x,'aprobado')});
+        if(x.estado!=='rechazado')btn('Rechazar',function(){askReject(x)},'d');
+        if(x.estado!=='pendiente')btn('Dejar pendiente',function(){review(x,'pendiente')});
+      }
+      if(x.user_id===ME.id&&x.estado!=='aprobado'){btn('Editar',function(){edit(x)});btn('Eliminar',function(){del(x)},'d')}
+      tr.appendChild(a);b.appendChild(tr);
+    });
+    $('lcount').textContent=j.total?(j.items.length+' de '+j.total+' gastos'):'No hay gastos con esos filtros.';
+    var box=$('sum');box.textContent='';
+    box.appendChild(sumTable('Por categoría',s.categoria,function(k){return CATN[k]||k}));
+    if(adm){box.appendChild(sumTable('Por técnico',s.tecnico));box.appendChild(sumTable('Por cliente',s.cliente))}
+    box.appendChild(sumTable('Por estado',s.estado,function(k){return ESTN[k]||k}));
+  }catch(e){$('lcount').textContent=e.message;$('lcount').className='msg err'}
+}
+$('fgo').onclick=search;
+$('fclr').onclick=function(){['fd','fh','fs','fcat','fu','fcl'].forEach(function(i){$(i).value=''});search()};
+$('fcsv').onclick=function(){window.location.href='/api/expenses.csv'+(LAST?'?'+LAST:'')};
+async function review(x,estado,motivo){try{await api('POST','/api/expenses/'+encodeURIComponent(x.id)+'/review',{estado:estado,motivo:motivo});search();return true}catch(e){alert(e.message);return false}}
+var rjx=null;
+function askReject(x){rjx=x;$('rjinfo').textContent=x.tecnico+' · '+x.fecha+' · '+money(x.monto);$('rjm').value='';$('rjerr').textContent='';$('rj').hidden=false}
+$('rjno').onclick=function(){$('rj').hidden=true};
+$('rjok').onclick=async function(){
+  var m=$('rjm').value.trim();if(m.length<5){$('rjerr').textContent='Escriba el motivo del rechazo.';return}
+  if(await review(rjx,'rechazado',m))$('rj').hidden=true;
+};
+function edit(x){
+  editing=x.id;photo=null;tab('new');
+  $('fecha').value=x.fecha;$('monto').value=x.monto;$('cat').value=x.categoria;$('doc').value=x.doc_tipo;$('docn').value=x.doc_numero||'';$('prov').value=x.proveedor||'';
+  $('cli').value=x.cliente||'';$('rep').value=x.report_id||'';$('just').value=x.justificacion;$('rec').value='';$('prev').hidden=true;$('curr').hidden=!x.tiene_comprobante;
+  $('ftitle').textContent='Corregir gasto';$('esave').textContent='Guardar y reenviar a revisión';$('ecancel').hidden=false;syncDoc();window.scrollTo(0,0);
+}
+async function del(x){if(!confirm('¿Eliminar este gasto de '+money(x.monto)+'?'))return;try{await api('DELETE','/api/expenses/'+encodeURIComponent(x.id));search()}catch(e){alert(e.message)}}
+init();
+})();
+</script>
+</body>
+</html>

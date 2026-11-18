@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Panel de administración</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mu:#5d6672;--bd:#d5d9df;--ac:#1d5fd6;--act:#fff;--er:#c0392b;--ok:#1a7f4b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c}}
+:root[data-theme="dark"]{--bg:#14171b;--card:#1d2127;--tx:#eceff3;--mu:#9aa4b0;--bd:#343b44;--ac:#5b93f5;--act:#0b1220;--er:#ff7b6b;--ok:#57d38c}
+*,*:before,*:after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.top .who{font-size:.85rem;color:var(--mu)}
+a{color:var(--ac)}
+label{display:block;font-size:.85rem;color:var(--mu);margin:0 0 4px}
+input,select{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:9px}
+button{font:inherit;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:9px 14px;cursor:pointer}
+button.p{background:var(--ac);color:var(--act);border-color:var(--ac);font-weight:600}
+button.s{padding:5px 9px;font-size:.85rem}
+button[disabled]{opacity:.5;cursor:default}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button.on{background:var(--ac);color:var(--act);border-color:var(--ac)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.msg{min-height:1.3em;font-size:.9rem;margin:8px 0}
+.err{color:var(--er)}.good{color:var(--ok)}
+.scroll{overflow-x:auto;border:1px solid var(--bd);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.wrap{white-space:normal;min-width:160px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;border:1px solid var(--bd);color:var(--mu)}
+.tag.admin{color:var(--ac);border-color:var(--ac)}
+.tag.off{color:var(--er);border-color:var(--er)}
+.ov{position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px}
+.ov .card{width:100%;max-width:420px;margin-top:8vh}
+.ov label{margin-top:10px}.ov label:first-of-type{margin-top:0}
+.ov p{color:var(--mu);font-size:.9rem;margin:6px 0 10px}
+.ov button.p{width:100%;padding:12px}
+.pwrow{display:grid;grid-template-columns:1fr auto;gap:8px}
+</style>
+</head>
+<body>
+
+<div id="login" class="ov" hidden>
+<form id="lf" class="card" autocomplete="on">
+<h1>Panel de administración</h1>
+<p>Ingrese con su RUT y contraseña.</p>
+<label for="lrut">RUT</label><input id="lrut" autocomplete="username" autocapitalize="off" placeholder="12.345.678-9" required>
+<label for="lpw">Contraseña</label><input id="lpw" type="password" autocomplete="current-password" required>
+<div id="lmsg" class="msg err" role="alert"></div>
+<button class="p" type="submit">Entrar</button>
+</form>
+<form id="cf" class="card" autocomplete="off" hidden>
+<h1>Cree su contraseña</h1>
+<p>Por seguridad, debe cambiar la contraseña temporal. Mínimo 8 caracteres.</p>
+<label for="cpw0">Contraseña actual</label><input id="cpw0" type="password" autocomplete="current-password" required>
+<label for="cpw1">Contraseña nueva</label><input id="cpw1" type="password" autocomplete="new-password" required>
+<label for="cpw2">Repita la contraseña nueva</label><input id="cpw2" type="password" autocomplete="new-password" required>
+<div id="cmsg" class="msg err" role="alert"></div>
+<button class="p" type="submit">Guardar contraseña</button>
+</form>
+</div>
+
+<main id="app" hidden>
+<div class="top">
+<h1>Panel de administración</h1>
+<div class="who"><span id="who"></span> · <a href="index.html">Ir a la app</a> · <a href="gastos.html">Gastos</a> · <button class="s" id="logout" type="button">Salir</button></div>
+</div>
+<div id="denied" class="card err" hidden>Esta página es solo para administradores.</div>
+
+<div id="panel" hidden>
+<div class="tabs"><button id="tb-rep" class="on" type="button">Informes</button><button id="tb-usr" type="button">Usuarios</button></div>
+
+<section id="sec-rep">
+<div class="card">
+<h2>Filtros</h2>
+<div class="grid">
+<div><label for="fd">Desde</label><input id="fd" type="date"></div>
+<div><label for="fh">Hasta</label><input id="fh" type="date"></div>
+<div><label for="fc">Cliente</label><input id="fc" placeholder="contiene…"></div>
+<div><label for="ft">Técnico</label><input id="ft" placeholder="contiene…"></div>
+<div><label for="fe">Equipo</label><input id="fe" placeholder="contiene…"></div>
+</div>
+<div class="bar">
+<button class="p" id="fgo" type="button">Buscar</button>
+<button id="fclr" type="button">Limpiar</button>
+<button id="fzip" type="button">Descargar ZIP de estos informes</button>
+</div>
+</div>
+<div class="card">
+<div id="rcount" class="msg"></div>
+<div class="scroll"><table>
+<thead><tr><th>Fecha</th><th>Cliente</th><th>Técnico</th><th>Equipo</th><th>Tipo</th><th>Enviado</th><th>Tamaño</th><th>PDF</th></tr></thead>
+<tbody id="rbody"></tbody>
+</table></div>
+<div class="bar"><button id="more" type="button" hidden>Cargar más</button></div>
+</div>
+</section>
+
+<section id="sec-usr" hidden>
+<div class="card">
+<h2>Nuevo usuario</h2>
+<form id="uf" autocomplete="off">
+<div class="grid">
+<div><label for="ur">RUT</label><input id="ur" placeholder="12.345.678-9" required></div>
+<div><label for="un">Nombre completo</label><input id="un" required></div>
+<div><label for="uo">Rol</label><select id="uo"><option value="tecnico">Técnico</option><option value="admin">Administrador</option></select></div>
+<div><label for="up">Contraseña temporal</label><div class="pwrow"><input id="up" required minlength="8"><button class="s" id="ugen" type="button">Generar</button></div></div>
+</div>
+<div class="bar"><button class="p" type="submit">Crear usuario</button></div>
+<div id="umsg" class="msg" role="status"></div>
+</form>
+</div>
+<div class="card">
+<h2>Usuarios</h2>
+<div class="scroll"><table>
+<thead><tr><th>RUT</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Informes</th><th>Acciones</th></tr></thead>
+<tbody id="ubody"></tbody>
+</table></div>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var ME=null,offset=0,LIMIT=100,lastQuery='';
+
+async function api(method,url,body){
+  var o={method:method,credentials:'same-origin',headers:{}};
+  if(body!==undefined){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
+  var r=await fetch(url,o),j={};
+  try{j=await r.json()}catch(e){}
+  if(r.status===401&&url!=='/api/login'&&url!=='/api/me'){ME=null;showLogin('Su sesión venció. Ingrese de nuevo.')}
+  if(!r.ok){var e=new Error(j.error||('Error '+r.status));e.status=r.status;throw e}
+  return j;
+}
+function el(tag,text,cls){var e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=text;if(cls)e.className=cls;return e}
+function td(text,cls){return el('td',text,cls)}
+function local(s){try{return new Date(String(s).replace(' ','T')+'Z').toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'})}catch(e){return s}}
+function size(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+function genPw(){var a='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789',b=new Uint32Array(12),o='';crypto.getRandomValues(b);for(var i=0;i<b.length;i++)o+=a[b[i]%a.length];return o}
+
+// ---------- sesión
+function showLogin(msg){$('app').hidden=true;$('login').hidden=false;$('lf').hidden=false;$('cf').hidden=true;$('lmsg').textContent=msg||'';$('lpw').value=''}
+function showChange(){$('app').hidden=true;$('login').hidden=false;$('lf').hidden=true;$('cf').hidden=false;$('cmsg').textContent=''}
+function enter(){
+  $('login').hidden=true;$('app').hidden=false;$('who').textContent=ME.name;
+  var adm=ME.role==='admin';$('denied').hidden=adm;$('panel').hidden=!adm;
+  if(adm){loadUsers();search(true)}
+}
+async function init(){
+  try{var j=await api('GET','/api/me');ME=j.user;if(ME.mustChange)showChange();else enter()}
+  catch(e){showLogin(e.status===401?'':'Sin conexión con el servidor.')}
+}
+$('lf').onsubmit=async function(ev){
+  ev.preventDefault();$('lmsg').textContent='Ingresando…';
+  try{var j=await api('POST','/api/login',{rut:$('lrut').value,password:$('lpw').value});ME=j.user;$('lmsg').textContent='';
+    if(ME.mustChange){$('cpw0').value=$('lpw').value;showChange()}else enter()}
+  catch(e){$('lmsg').textContent=e.message;$('lpw').value=''}
+};
+$('cf').onsubmit=async function(ev){
+  ev.preventDefault();
+  if($('cpw1').value!==$('cpw2').value){$('cmsg').textContent='Las contraseñas nuevas no coinciden.';return}
+  try{var j=await api('POST','/api/password',{current:$('cpw0').value,password:$('cpw1').value});ME=j.user;$('cpw0').value=$('cpw1').value=$('cpw2').value='';enter()}
+  catch(e){$('cmsg').textContent=e.message}
+};
+$('logout').onclick=async function(){try{await api('POST','/api/logout')}catch(e){}ME=null;showLogin()};
+
+// ---------- pestañas
+function tab(which){
+  $('sec-rep').hidden=which!=='rep';$('sec-usr').hidden=which!=='usr';
+  $('tb-rep').className=which==='rep'?'on':'';$('tb-usr').className=which==='usr'?'on':'';
+}
+$('tb-rep').onclick=function(){tab('rep')};$('tb-usr').onclick=function(){tab('usr')};
+
+// ---------- informes
+function qs(){
+  var p=new URLSearchParams();
+  [['desde','fd'],['hasta','fh'],['cliente','fc'],['tecnico','ft'],['equipo','fe']].forEach(function(x){var v=$(x[1]).value.trim();if(v)p.set(x[0],v)});
+  return p.toString();
+}
+async function search(reset){
+  if(reset){offset=0;$('rbody').textContent='';lastQuery=qs()}
+  $('rcount').textContent='Buscando…';$('rcount').className='msg';
+  try{
+    var j=await api('GET','/api/reports?'+lastQuery+(lastQuery?'&':'')+'limit='+LIMIT+'&offset='+offset);
+    j.items.forEach(function(r){
+      var tr=el('tr');
+      tr.appendChild(td(r.fecha));tr.appendChild(td(r.cliente,'wrap'));tr.appendChild(td(r.tecnico));
+      tr.appendChild(td(r.equipo));tr.appendChild(td(r.tipo));tr.appendChild(td(local(r.created_at)));tr.appendChild(td(size(r.size)));
+      var c=el('td');
+      var v=el('a','Ver');v.href='/api/reports/'+encodeURIComponent(r.id)+'/pdf';v.target='_blank';v.rel='noopener';
+      var d=el('a','Descargar');d.href=v.href+'?download=1';d.style.marginLeft='10px';
+      c.appendChild(v);c.appendChild(d);tr.appendChild(c);$('rbody').appendChild(tr);
+    });
+    offset+=j.items.length;
+    $('rcount').textContent=j.total?('Mostrando '+offset+' de '+j.total+' informes'):'No hay informes con esos filtros.';
+    $('more').hidden=offset>=j.total;$('fzip').disabled=!j.total;
+  }catch(e){$('rcount').textContent=e.message;$('rcount').className='msg err'}
+}
+$('fgo').onclick=function(){search(true)};
+$('more').onclick=function(){search(false)};
+$('fclr').onclick=function(){['fd','fh','fc','ft','fe'].forEach(function(i){$(i).value=''});search(true)};
+['fc','ft','fe'].forEach(function(i){$(i).addEventListener('keydown',function(e){if(e.key==='Enter')search(true)})});
+$('fzip').onclick=function(){window.location.href='/api/reports.zip'+(lastQuery?'?'+lastQuery:'')};
+
+// ---------- usuarios
+async function loadUsers(){
+  try{
+    var j=await api('GET','/api/users'),b=$('ubody');b.textContent='';
+    j.items.forEach(function(u){
+      var tr=el('tr');
+      tr.appendChild(td(u.rut));tr.appendChild(td(u.name,'wrap'));
+      var r=el('td');r.appendChild(el('span',u.role==='admin'?'Administrador':'Técnico','tag'+(u.role==='admin'?' admin':'')));tr.appendChild(r);
+      var s=el('td');s.appendChild(el('span',u.active?(u.must_change?'Clave temporal':'Activo'):'Desactivado','tag'+(u.active?'':' off')));tr.appendChild(s);
+      tr.appendChild(td(String(u.informes)));
+      var a=el('td'),self=u.id===ME.id;
+      var bp=el('button','Nueva clave temporal','s');bp.type='button';bp.onclick=function(){resetPw(u)};a.appendChild(bp);
+      if(!self){
+        var bt=el('button',u.active?'Desactivar':'Activar','s');bt.type='button';bt.style.marginLeft='6px';bt.onclick=function(){toggle(u)};a.appendChild(bt);
+        var br=el('button',u.role==='admin'?'Hacer técnico':'Hacer admin','s');br.type='button';br.style.marginLeft='6px';br.onclick=function(){setRole(u)};a.appendChild(br);
+      }
+      tr.appendChild(a);b.appendChild(tr);
+    });
+  }catch(e){}
+}
+async function patch(u,body,ok){try{await api('PATCH','/api/users/'+u.id,body);if(ok)alert(ok);loadUsers()}catch(e){alert(e.message)}}
+function resetPw(u){
+  var pw=prompt('Nueva contraseña temporal para '+u.name+' (mínimo 8 caracteres).\nPuede usar esta o escribir otra:',genPw());
+  if(pw===null)return;
+  patch(u,{password:pw},'Listo. Contraseña temporal de '+u.name+':\n\n'+pw+'\n\nEntréguesela: deberá cambiarla al entrar.');
+}
+function toggle(u){if(confirm((u.active?'¿Desactivar a ':'¿Activar a ')+u.name+'?'+(u.active?'\nDejará de poder entrar de inmediato. Sus informes se conservan.':'')))patch(u,{active:!u.active})}
+function setRole(u){var to=u.role==='admin'?'tecnico':'admin';if(confirm('¿Cambiar a '+u.name+' a '+(to==='admin'?'Administrador (podrá ver todos los informes y gestionar usuarios)':'Técnico')+'?'))patch(u,{role:to})}
+$('ugen').onclick=function(){$('up').value=genPw()};
+$('uf').onsubmit=async function(ev){
+  ev.preventDefault();var m=$('umsg');m.className='msg';m.textContent='Creando…';
+  var pw=$('up').value,nm=$('un').value;
+  try{
+    await api('POST','/api/users',{rut:$('ur').value,name:nm,role:$('uo').value,password:pw});
+    m.className='msg good';m.textContent='Usuario creado. Entréguele estos datos a '+nm+': RUT '+$('ur').value+' · contraseña temporal '+pw+' (deberá cambiarla al entrar).';
+    $('ur').value=$('un').value=$('up').value='';loadUsers();
+  }catch(e){m.className='msg err';m.textContent=e.message}
+};
+init();
+})();
+</script>
+</body>
+</html>

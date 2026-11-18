@@ -1,0 +1,27 @@
+# Alternativa para un servidor propio (Vultr u otro) con Docker. Ver README.md, sección "Vultr".
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /data
+      TRUST_PROXY: "1"
+    volumes:
+      - datos:/data
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+volumes:
+  datos:
+  caddy_data:
+  caddy_config:
