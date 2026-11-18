@@ -107,11 +107,13 @@
 <p class="hint" style="margin-top:0">Para informes anteriores que ya tiene en PDF. Se guarda con los demás y el cliente lo verá en su portal.</p>
 <form id="upf" autocomplete="off">
 <label for="upfile">Archivo PDF (máx. 25 MB)</label><input id="upfile" type="file" accept="application/pdf,.pdf" required>
+<div id="upai" class="hint" role="status"></div>
 <label for="upfecha">Fecha del informe</label><input id="upfecha" type="date" required>
 <label for="upcli">Cliente</label><input id="upcli" required maxlength="150" placeholder="Nombre del cliente">
 <label for="upequ">Equipo</label><input id="upequ" maxlength="100" placeholder="Ej: Ecógrafo">
 <label for="upmod">Modelo</label><input id="upmod" maxlength="120">
 <label for="upser">N.º de serie</label><input id="upser" maxlength="80">
+<label for="uptec">Técnico</label><input id="uptec" maxlength="100" placeholder="Quién realizó el servicio">
 <label for="uptip">Tipo de servicio</label><input id="uptip" maxlength="100" placeholder="Ej: Mantención preventiva">
 <label for="uppro">Resumen / problema</label><input id="uppro" maxlength="300">
 <div style="height:10px"></div>
@@ -612,11 +614,11 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
     rd.onload=function(){
       var id='up-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
       var v=function(i){return g(i).value.trim()};
-      fetch('/api/reports',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,name:file.name.replace(/\.pdf$/i,''),fecha:v('upfecha'),cliente:v('upcli'),equipo:v('upequ'),modelo:v('upmod'),serie:v('upser'),tipo:v('uptip'),problema:v('uppro'),pdf:String(rd.result).split(',')[1]})})
+      fetch('/api/reports',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,name:file.name.replace(/\.pdf$/i,''),fecha:v('upfecha'),cliente:v('upcli'),equipo:v('upequ'),modelo:v('upmod'),serie:v('upser'),tipo:v('uptip'),tecnico:v('uptec'),problema:v('uppro'),pdf:String(rd.result).split(',')[1]})})
       .then(function(r){return r.json().catch(function(){return{}}).then(function(j){
         if(r.status===401){m.textContent='La sesión venció. Vuelva a ingresar.';return}
         if(!r.ok||!j.ok){m.textContent=j.error||('Error '+r.status);return}
-        m.textContent='Informe subido correctamente.';f.reset();g('upfecha').value=new Date().toISOString().slice(0,10);
+        m.textContent='Informe subido correctamente.';f.reset();g('upai').textContent='';g('upfecha').value=new Date().toISOString().slice(0,10);
         var sq=g('sq');if(sq)sq.dispatchEvent(new Event('input'));
       })}).catch(function(){m.textContent='No se pudo subir. Revise la conexión.'})
       .then(function(){b.disabled=false});
@@ -648,6 +650,30 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
   var lo=g('logout');if(lo)lo.addEventListener('click',function(){try{sessionStorage.removeItem('soim-mode')}catch(e){}});
   // sesión ya abierta al recargar: conservar la opción elegida
   show((function(){try{return sessionStorage.getItem('soim-mode')||''}catch(e){return ''}})());
+})();
+
+// ---- Lectura automática del PDF con IA (si el servidor la tiene activada)
+(function(){
+  var g=function(i){return document.getElementById(i)},fi=g('upfile');if(!fi)return;
+  var ids={fecha:'upfecha',cliente:'upcli',equipo:'upequ',modelo:'upmod',serie:'upser',tipo:'uptip',tecnico:'uptec',problema:'uppro'};
+  var on=null;
+  fi.addEventListener('change',function(){
+    var file=fi.files[0],m=g('upai');m.textContent='';if(!file||file.size>25*1024*1024||!navigator.onLine)return;
+    if(on===false)return;
+    var go=function(){
+      m.textContent='Leyendo el informe con IA…';
+      var rd=new FileReader();rd.onload=function(){
+        fetch('/api/extract',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdf:String(rd.result).split(',')[1]})})
+        .then(function(r){return r.json().catch(function(){return{}}).then(function(j){
+          if(!r.ok||!j.ok){m.textContent=j.error||'No se pudo leer el informe. Complete los datos a mano.';return}
+          var n=0;Object.keys(ids).forEach(function(k){var v=j.data[k];if(v){g(ids[k]).value=v;n++}});
+          m.textContent=n?'Datos leídos del informe. Revíselos antes de subir.':'No se encontraron datos en el PDF. Complételos a mano.';
+        })}).catch(function(){m.textContent='No se pudo leer el informe. Complete los datos a mano.'});
+      };rd.readAsDataURL(file);
+    };
+    if(on===true)return go();
+    fetch('/api/extract/status',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){on=!!j.enabled;if(on)go()}).catch(function(){});
+  });
 })();
 </script>
 </body>

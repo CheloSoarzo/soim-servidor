@@ -75,6 +75,10 @@ Disponible en `https://SU-DOMINIO/gastos` (hay un enlace *Gastos* en la app y en
 
 ---
 
+## Lectura automática de informes con IA
+
+Al subir un PDF ya elaborado, el sistema puede leerlo y rellenar fecha, cliente, equipo, modelo, serie, tipo, técnico y resumen. El técnico revisa y corrige antes de subir. Para activarlo, agregue en `/opt/soim/.env` la línea `ANTHROPIC_API_KEY=su-clave` (se crea en console.anthropic.com) y reinicie con `docker compose up -d`. Sin la clave, el formulario funciona igual pero a mano. El PDF se envía a la API de Anthropic solo para esa lectura; cada lectura tiene un costo pequeño por uso.
+
 ## Subir informes anteriores
 
 En la app, la tarjeta "Subir informe ya elaborado" permite cargar un PDF existente con fecha, cliente y datos del equipo. Queda guardado como cualquier otro informe (admin, historial de equipo y portal del cliente).

@@ -271,6 +271,49 @@ route('POST', '/api/logout', ctx => { clearSession(ctx.res); send(ctx.res, 200, 
 
 route('GET', '/api/me', ctx => { const u = needUser(ctx, { allowMust: true }); send(ctx.res, 200, { user: pub(u) }); });
 
+// ---- Lectura automática de un informe PDF con IA (opcional: requiere ANTHROPIC_API_KEY)
+const AI_KEY = process.env.ANTHROPIC_API_KEY || '';
+const AI_URL = process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com/v1/messages';
+const AI_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+const AI_PROMPT = 'Lee este informe de servicio técnico de equipos médicos y devuelve SOLO un objeto JSON (sin texto adicional ni bloques de código) con estas claves de texto: ' +
+  '"fecha" (fecha del servicio en formato AAAA-MM-DD), "cliente" (institución o clínica que recibe el servicio), "equipo" (tipo de equipo, ej. Ecógrafo), "modelo" (marca y modelo), ' +
+  '"serie" (número de serie), "tipo" (tipo de servicio, ej. Mantención preventiva, Reparación, Instalación), "tecnico" (nombre del técnico), "problema" (resumen breve en una frase del problema o trabajo realizado, máximo 200 caracteres). ' +
+  'Si un dato no aparece en el documento, usa una cadena vacía. No inventes datos.';
+function aiCall(pdfB64) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(AI_URL), lib = u.protocol === 'http:' ? http : require('https');
+    const body = JSON.stringify({ model: AI_MODEL, max_tokens: 600, messages: [{ role: 'user', content: [
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } }, { type: 'text', text: AI_PROMPT }] }] });
+    const rq = lib.request(u, { method: 'POST', timeout: 60000, headers: { 'content-type': 'application/json', 'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01', 'content-length': Buffer.byteLength(body) } }, rs => {
+      const ch = []; rs.on('data', c => ch.push(c));
+      rs.on('end', () => { try { const j = JSON.parse(Buffer.concat(ch).toString()); rs.statusCode >= 400 ? reject(new Error('IA ' + rs.statusCode)) : resolve(j); } catch (e) { reject(e); } });
+    });
+    rq.on('timeout', () => rq.destroy(new Error('timeout'))); rq.on('error', reject); rq.end(body);
+  });
+}
+route('GET', '/api/extract/status', ctx => { needStaff(ctx); send(ctx.res, 200, { enabled: !!AI_KEY }); });
+route('POST', '/api/extract', async ctx => {
+  const u = needStaff(ctx);
+  if (!AI_KEY) throw new HttpError(503, 'La lectura automática no está activada en el servidor.');
+  if (!hit('ai:' + u.id, 60, 60 * 60e3)) throw new HttpError(429, 'Demasiadas lecturas seguidas. Intente más tarde.');
+  const b = await readJson(ctx.req, 35 * 1024 * 1024);
+  if (typeof b.pdf !== 'string' || !b.pdf) throw new HttpError(400, 'Falta el PDF.');
+  const buf = Buffer.from(b.pdf, 'base64');
+  if (buf.length < 100 || buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'El archivo no es un PDF válido.');
+  if (buf.length > MAX_PDF) throw new HttpError(413, 'El PDF es demasiado grande (máximo 25 MB).');
+  let out = {};
+  try {
+    const j = await aiCall(buf.toString('base64'));
+    const txt = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    const m = txt.match(/\{[\s\S]*\}/); out = m ? JSON.parse(m[0]) : {};
+  } catch (e) { throw new HttpError(502, 'No se pudo leer el informe automáticamente. Complete los datos a mano.'); }
+  const r = {};
+  for (const k of ['cliente', 'equipo', 'modelo', 'serie', 'tipo', 'tecnico']) r[k] = clean(out[k], 150);
+  r.problema = clean(out.problema, 300);
+  r.fecha = DATE_RE.test(String(out.fecha || '')) ? String(out.fecha) : '';
+  send(ctx.res, 200, { ok: true, data: r });
+});
+
 route('POST', '/api/password', async ctx => {
   const u = needUser(ctx, { allowMust: true });
   if (!peek('pw:' + u.id, 10, 15 * 60e3)) throw new HttpError(429, 'Demasiados intentos. Espere unos minutos.');
