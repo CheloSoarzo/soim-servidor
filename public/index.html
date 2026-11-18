@@ -54,7 +54,7 @@
 <label for="dir">Dirección</label><input id="dir" autocomplete="off">
 <div class="row">
 <div><label for="fecha">Fecha</label><input id="fecha" type="date"></div>
-<div><label for="tipo">Tipo</label><select id="tipo"><option>Mantenimiento</option><option>Reparación</option><option>Instalación</option><option>Inspección</option></select></div>
+<div><label for="tipo">Tipo</label><select id="tipo"><option>Mantenimiento preventivo</option><option>Mantenimiento correctivo</option><option>Inspección</option><option>Instalación</option></select></div>
 </div>
 <label for="tec">Técnico</label><select id="tec"><option value="">Seleccione técnico…</option><option>Armando Soarzo</option><option>Diego Vega</option><option>Marcelo Soarzo</option><option>Matias Pastrian</option><option>Nicolas Paredes</option></select>
 <div id="svbox"></div>
@@ -114,7 +114,7 @@
 <label for="upmod">Modelo</label><input id="upmod" maxlength="120">
 <label for="upser">N.º de serie</label><input id="upser" maxlength="80">
 <label for="uptec">Técnico</label><input id="uptec" maxlength="100" placeholder="Quién realizó el servicio">
-<label for="uptip">Tipo de servicio</label><input id="uptip" maxlength="100" placeholder="Ej: Mantención preventiva">
+<label for="uptip">Tipo de servicio</label><select id="uptip"><option value="">Seleccione…</option><option>Mantenimiento preventivo</option><option>Mantenimiento correctivo</option><option>Inspección</option><option>Instalación</option></select>
 <label for="uppro">Resumen / problema</label><input id="uppro" maxlength="300">
 <div style="height:10px"></div>
 <button class="p" type="submit" id="upbtn" style="width:100%">Subir informe</button>
@@ -211,7 +211,7 @@ var EQ={
 'Otro':[{k:'Marca / modelo',t:'text'},{k:'N° de serie',t:'text'}]
 };
 var SV={
-'Reparación':[
+'Mantenimiento correctivo':[
  {k:'Código de error',t:'text'},
  {k:'¿Equipo fuera de servicio?',t:'sel',o:SN},
  {k:'Horas fuera de servicio',t:'num',if:['¿Equipo fuera de servicio?','Sí']}],
@@ -343,7 +343,8 @@ function render(){
     bs.appendChild(o);bs.appendChild(x);d.appendChild(t);d.appendChild(bs);L.appendChild(d);
   });
 }
-function open_(r){F.forEach(function(k){$(k).value=r.d[k]||''});X={};(r.d.x||[]).forEach(function(p){X[p[0]]=p[1]});P=(r.d.ph||[]).slice();renderPh();C={};CU=(r.d.cu||[]).slice();(r.d.ck||[]).forEach(function(p){C[p[0]]=p[1]});refresh();pads.s1.clear();pads.s2.clear();pads.s1.load(r.s1);pads.s2.load(r.s2);lastAuto='';applyUser();window.scrollTo(0,0);say('Informe cargado.')}
+function tipoNorm(v){v=String(v||'').toLowerCase();if(!v)return '';if(/correct|repar|falla/.test(v))return 'Mantenimiento correctivo';if(/prevent|mantenc|manten/.test(v))return 'Mantenimiento preventivo';if(/inspec/.test(v))return 'Inspección';if(/instal/.test(v))return 'Instalación';return ''}
+function open_(r){F.forEach(function(k){$(k).value=r.d[k]||''});if(!$('tipo').value)$('tipo').value=tipoNorm(r.d.tipo)||'Mantenimiento preventivo';X={};(r.d.x||[]).forEach(function(p){X[p[0]]=p[1]});P=(r.d.ph||[]).slice();renderPh();C={};CU=(r.d.cu||[]).slice();(r.d.ck||[]).forEach(function(p){C[p[0]]=p[1]});refresh();pads.s1.clear();pads.s2.clear();pads.s1.load(r.s1);pads.s2.load(r.s2);lastAuto='';applyUser();window.scrollTo(0,0);say('Informe cargado.')}
 $('save').onclick=function(){
   var d=data();if(!d.cliente){say('Escriba el nombre del cliente.',1);return}
   var a=readAll();
@@ -716,7 +717,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
         fetch('/api/extract',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({pdf:String(rd.result).split(',')[1]})})
         .then(function(r){return r.json().catch(function(){return{}}).then(function(j){
           if(!r.ok||!j.ok){m.textContent=j.error||'No se pudo leer el informe. Complete los datos a mano.';return}
-          var n=0;Object.keys(ids).forEach(function(k){var v=j.data[k];if(v){g(ids[k]).value=v;n++}});
+          var n=0;if(j.data.tipo&&typeof tipoNorm==='function')j.data.tipo=tipoNorm(j.data.tipo);else if(j.data.tipo)j.data.tipo=(function(v){v=v.toLowerCase();return /correct|repar|falla/.test(v)?'Mantenimiento correctivo':/prevent|manten/.test(v)?'Mantenimiento preventivo':/inspec/.test(v)?'Inspección':/instal/.test(v)?'Instalación':''})(j.data.tipo);Object.keys(ids).forEach(function(k){var v=j.data[k];if(v){g(ids[k]).value=v;n++}});
           m.textContent=n?'Datos leídos del informe. Revíselos antes de subir.':'No se encontraron datos en el PDF. Complételos a mano.';
         })}).catch(function(){m.textContent='No se pudo leer el informe. Complete los datos a mano.'});
       };rd.readAsDataURL(file);
