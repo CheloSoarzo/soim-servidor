@@ -119,7 +119,7 @@
 <div id="upmsg" class="hint" role="status"></div>
 </form></div>
 </div>
-<div id="vsent" hidden><div class="card" style="margin-top:16px"><h2>Mis informes enviados</h2>
+<div id="vsent" hidden><div class="card" style="margin-top:16px"><h2>Informes de SOIM Chile</h2>
 <label for="sq" class="vh">Buscar</label><input id="sq" type="search" placeholder="Buscar por cliente, equipo o serie…">
 <div id="sentmsg" class="hint"></div><div id="sentlist"></div></div></div>
 <div id="vsaved" hidden><div class="card" style="margin-top:16px"><h2>Informes guardados</h2><div id="list"><small style="color:var(--mu)">Ninguno todavía</small></div></div></div>
@@ -434,7 +434,7 @@ function sentRow(x,pend){
   var h=document.createElement('div');h.className='rep-h';var b=document.createElement('b');b.textContent=fdate(x.fecha)+' · '+x.cliente;h.appendChild(b);
   if(pend){var t=document.createElement('span');t.className='tag pendiente';t.textContent='Sin enviar';h.appendChild(t)}
   c.appendChild(h);
-  var m=document.createElement('div');m.className='hint';m.textContent=[x.equipo,x.serie&&'Serie '+x.serie,x.tipo].filter(Boolean).join(' · ');c.appendChild(m);
+  var m=document.createElement('div');m.className='hint';m.textContent=[x.equipo,x.serie&&'Serie '+x.serie,x.tipo,x.tecnico&&'Téc. '+x.tecnico].filter(Boolean).join(' · ');c.appendChild(m);
   if(!pend){var a=document.createElement('a');a.textContent='Ver PDF';a.href='/api/reports/'+encodeURIComponent(x.id)+'/pdf';a.target='_blank';a.rel='noopener';a.style.display='inline-block';a.style.marginTop='6px';c.appendChild(a)}
   return c;
 }

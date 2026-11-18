@@ -85,7 +85,7 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 'x'), Bu
     r = await call('POST', '/api/reports', rep, t1);
     ok(r.status === 200 && r.json.dup, 'reenvío del mismo informe no se duplica');
     ok((await call('POST', '/api/reports', Object.assign({}, rep, { id: '2026-10-20-zzz999-1', fecha: '2026-10-20', cliente: 'Imaval', equipo: 'Rayos X' }), t2)).status === 201, 'técnico 2 sube otro informe');
-    ok((await call('GET', '/api/reports', undefined, t1)).json.total === 1, 'técnico 1 solo ve el suyo');
+    ok((await call('GET', '/api/reports', undefined, t1)).json.total === 2, 'técnico 1 ve los informes de todos los técnicos');
     r = await call('GET', '/api/reports', undefined, adm);
     ok(r.json.total === 2 && r.json.items[0].fecha === '2026-11-02', 'administrador ve ambos, el más reciente primero');
     ok((await call('GET', '/api/reports?cliente=imaval', undefined, adm)).json.total === 1, 'filtro por cliente');
@@ -94,7 +94,7 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 'x'), Bu
     ok((await call('GET', '/api/reports?cliente=%25', undefined, adm)).json.total === 0, 'el comodín % se trata como texto');
     r = await call('GET', '/api/reports/' + rep.id + '/pdf', undefined, t1);
     ok(r.status === 200 && Buffer.compare(r.buf, PDF) === 0 && r.headers.get('content-type') === 'application/pdf', 'el dueño descarga su PDF idéntico');
-    ok((await call('GET', '/api/reports/' + rep.id + '/pdf', undefined, t2)).status === 404, 'otro técnico no puede ver ese PDF → 404');
+    ok((await call('GET', '/api/reports/' + rep.id + '/pdf', undefined, t2)).status === 200, 'otro técnico también puede ver ese PDF');
     ok((await call('GET', '/api/reports/' + rep.id + '/pdf', undefined, adm)).status === 200, 'el administrador sí puede');
     ok((await call('GET', '/api/reports/' + rep.id + '/pdf')).status === 401, 'sin sesión no se descarga → 401');
 
@@ -172,7 +172,7 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(300, 'x'), Bu
     r = await call('GET', '/api/equipos', undefined, adm);
     const g = r.json.items.find(x => x.serie === 'SN-123');
     ok(g && g.informes === 2 && g.ultimo === '2026-11-20' && g.cliente === 'Clinica Alemana Osorno', 'equipos agrupados por cliente, equipo y serie');
-    ok((await call('GET', '/api/equipos', undefined, t2)).json.items.every(x => x.cliente === 'Imaval'), 'el técnico solo ve los equipos de sus informes');
+    ok((await call('GET', '/api/equipos', undefined, t2)).json.items.length === (await call('GET', '/api/equipos', undefined, adm)).json.items.length, 'el técnico ve los equipos de todos los informes');
 
     console.log('Portal de clientes');
     const crut = '76123456-' + dvOf(76123456);

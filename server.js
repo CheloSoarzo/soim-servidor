@@ -316,7 +316,6 @@ route('POST', '/api/reports', async ctx => {
 function reportFilter(ctx) {
   const q = ctx.query, w = [], p = [];
   if (ctx.user.role === 'cliente') { w.push('r.cliente=?'); p.push(ctx.user.cliente || '\u0000'); }
-  else if (ctx.user.role !== 'admin') { w.push('r.user_id=?'); p.push(ctx.user.id); }
   if (DATE_RE.test(q.desde || '')) { w.push('r.fecha>=?'); p.push(q.desde); }
   if (DATE_RE.test(q.hasta || '')) { w.push('r.fecha<=?'); p.push(q.hasta); }
   for (const f of ['cliente', 'tecnico', 'equipo', 'modelo', 'serie']) {
@@ -383,7 +382,7 @@ route('GET', '/api/reports/:id/pdf', ctx => {
   const id = ctx.params.id;
   if (!ID_RE.test(id)) throw new HttpError(404, 'No encontrado.');
   const r = qRepById.get(id);
-  const allowed = r && (ctx.user.role === 'admin' || (ctx.user.role === 'cliente' ? (ctx.user.cliente && r.cliente === ctx.user.cliente) : r.user_id === ctx.user.id));
+  const allowed = r && (ctx.user.role === 'cliente' ? (ctx.user.cliente && r.cliente === ctx.user.cliente) : true);
   if (!allowed) throw new HttpError(404, 'No encontrado.');
   const file = path.join(PDF_DIR, id + '.pdf');
   if (!fs.existsSync(file)) throw new HttpError(404, 'El archivo no está en el servidor.');

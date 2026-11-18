@@ -10,7 +10,7 @@ Los técnicos entran con su **RUT y contraseña**, llenan el informe en el telé
 | **Administrador** | Entra en `https://SU-SERVIDOR/admin`. Ve todos los informes, filtra por fecha, cliente, técnico o equipo, descarga PDF sueltos o un **ZIP** (una carpeta por cliente). Crea usuarios, desactiva técnicos y entrega claves temporales. |
 
 - Sin internet, el informe queda pendiente en el teléfono y se envía solo al volver la conexión.
-- Cada técnico solo ve sus propios informes. Solo el administrador ve todos.
+- Todos los técnicos pueden ver los informes de todos (lista y PDF). Solo el administrador accede al panel y al ZIP.
 - Todo funciona con una sola aplicación Node.js (sin librerías externas) y una base SQLite. Los PDF se guardan en el disco del servidor.
 
 ---
@@ -107,7 +107,7 @@ Ya incluido:
 - Sesión en una cookie `HttpOnly` y `SameSite=Strict`, solo por HTTPS en producción. Dura 30 días.
 - Bloqueo temporal tras varios intentos fallidos (por RUT y por IP).
 - Al cambiar una clave o desactivar a un usuario, sus sesiones abiertas dejan de valer de inmediato.
-- Cada técnico solo accede a sus informes; el panel y el ZIP exigen rol de administrador.
+- Los técnicos ven todos los informes; los clientes solo los suyos; el panel y el ZIP exigen rol de administrador.
 - Validación de RUT (dígito verificador), de PDF (formato y tamaño máximo de 25 MB) y protección contra envíos desde otros sitios.
 
 Depende de usted:
